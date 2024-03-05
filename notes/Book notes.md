@@ -1,0 +1,11 @@
+- The [_Asynchronous Programming in Rust_ book](https://rust-lang.github.io/async-book/) exists! We can lean on that for “here are additional materials to go get a deeper dive.” It is incomplete, but it includes a chapter on building a small executor.
+- Two broad approaches: top down (“build something with Tokio/Smol/whatever”) and bottom up (“here are the core types and how they work together”). Can we synthesize the two, bouncing back and forth?
+- Length:
+    - The web server chapter is ~10,000 words.
+    - The scope of `async` is large. At a minimum, it includes—and we probably need to cover, at least to *some* degree—:
+        - The basic syntax: `async` blocks (including `async move` blocks), `async fn`, and `.await`
+        - `std::future::Future`
+        - `std::pin::Pin`
+        - `std::task::{Context, Waker, Poll}`
+        - some variety of `block_on`, since that’s exposed by basically every executor out there
+            - maaaaybe what `block_on` actually does? See comment about the async book above, though.
