@@ -73,4 +73,4 @@ Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accur
 
 ## Related
 
-- [[Projects/Writing/TRPL/Tokio notes|Tokio notes]]
+- [[Tokio notes]]
