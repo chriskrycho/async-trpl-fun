@@ -4,7 +4,8 @@
 
 > The `.await` keyword desugars into a call to `IntoFuture::into_future` first before polling the future to completion. `IntoFuture` is implemented for all `T: Future` which means the `into_future` method will be available on all futures.
 
-This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Tokio notes|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
+This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Tokio|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
+
 ## Mental model
 
 What is the Rust equivalent to this?
@@ -43,6 +44,11 @@ async fn hello() -> &'static str {
 
 It *does* feel weird not to have a “good default” baked in, and given the prominence of `futures`, it is *doubly* weird to me not to just ship that executor… but I can imagine the bike-shedding that proposing as much would produce. 🥴 Basically every executor out there ends up shipping ~`block_on` because its utility is so high, AFAICT.
 
+Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accurately!) that async in Rust is two key things, brought together in a powerful way:
+
+- “an inversion of control”, where the caller gets control over the flow of the body of the async function
+- a way of building state machines which are much less error prone because they are *not* managed by hand
+
 ## Notable runtimes
 
 - [tokio](https://tokio.rs)
@@ -60,14 +66,42 @@ What is the relationship between the [futures](https://docs.rs/futures/latest/fu
 > - Many utility types, macros and functions are provided by the [`futures`](https://docs.rs/futures/) crate. They can be used in any async Rust application.
 
 
----
+## Cancelation
 
-Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accurately!) that async in Rust is two key things, brought together in a powerful way:
+Thinking about this pair of comments from [[Tokio|Tokio]]’s docs for `JoinHandle`:
 
-- “an inversion of control”, where the caller gets control over the flow of the body of the async function
-- a way of building state machines which are much less error prone because they are *not* managed by hand
+> The `&mut JoinHandle<T>` type is cancel safe. If it is used as the event in a `tokio::select!` statement and some other branch completes first, then it is guaranteed that the output of the task is not lost.
+> 
+> If a `JoinHandle` is dropped, then the task continues running in the background and its return value is lost.
 
----
+This is an important distinction. The behavior of the task when *dropped* is the same as it is for `std::thread::JoinHandle`, *and* it is safe for cancellation. Cancellation is a distinct concept from `Drop`. Cancellation is sometimes implicit, e.g. the result of joining a couple tasks and accepting the first one to finish (e.g. `tokio::select!(future_a, future_b).
+
+On the one hand, it is to the community’s credit that there is detailed documentation of cancellation safety (e.g. in [the `tokio::select!` documentation](https://docs.rs/tokio/latest/tokio/macro.select.html)). On the other hand, it seems like a fairly obvious footgun! It is also not 100% obvious to me whether “cancellation safety” _per se_ is actually rigorously defined. These seem fairly different, for example (_ibid._):
+
+> The following methods are not cancellation safe and can lead to loss of data:
+> 
+> - [`tokio::io::AsyncReadExt::read_exact`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncReadExt.html#method.read_exact "method tokio::io::AsyncReadExt::read_exact")
+> - [`tokio::io::AsyncReadExt::read_to_end`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncReadExt.html#method.read_to_end "method tokio::io::AsyncReadExt::read_to_end")
+> - [`tokio::io::AsyncReadExt::read_to_string`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncReadExt.html#method.read_to_string "method tokio::io::AsyncReadExt::read_to_string")
+> - [`tokio::io::AsyncWriteExt::write_all`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncWriteExt.html#method.write_all "method tokio::io::AsyncWriteExt::write_all")
+> 
+> The following methods are not cancellation safe because they use a queue for fairness and cancellation makes you lose your place in the queue:
+> 
+> - [`tokio::sync::Mutex::lock`](https://docs.rs/tokio/latest/tokio/sync/struct.Mutex.html#method.lock "method tokio::sync::Mutex::lock")
+> - [`tokio::sync::RwLock::read`](https://docs.rs/tokio/latest/tokio/sync/struct.RwLock.html#method.read "method tokio::sync::RwLock::read")
+> - [`tokio::sync::RwLock::write`](https://docs.rs/tokio/latest/tokio/sync/struct.RwLock.html#method.write "method tokio::sync::RwLock::write")
+> - [`tokio::sync::Semaphore::acquire`](https://docs.rs/tokio/latest/tokio/sync/struct.Semaphore.html#method.acquire "method tokio::sync::Semaphore::acquire")
+> - [`tokio::sync::Notify::notified`](https://docs.rs/tokio/latest/tokio/sync/struct.Notify.html#method.notified "method tokio::sync::Notify::notified")
+
+Tokio’s doc continues:
+
+> Cancellation safety can be defined in the following way: If you have a future that has not yet completed, then it must be a no-op to drop that future and recreate it. This definition is motivated by the situation where a `select!` is used in a loop. Without this guarantee, you would lose your progress when another branch completes and you restart the `select!` by going around the loop.
+> 
+> Be aware that cancelling something that is not cancellation safe is not necessarily wrong. For example, if you are cancelling a task because the application is shutting down, then you probably don’t care that partially read data is lost.
+
+This is sort of adjacent to idempotency—but not identical, because of the caveat around completion.
+
+## Misc.
 
 - There is no `Debug` implementation for the anonymous `Future` created by `async fn`, which makes sense: it is not the case that `Future: Debug`, and `Future` is a trait, and `async fn foo() -> T` is *roughly* like `fn foo() -> impl Future<Output = T>`.
 - Every `Future` you interact with has a concrete struct or enum backing it. This *should* be obvious but, weirdly, was not obvious to me.
@@ -82,4 +116,4 @@ Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accur
 
 ## Related
 
-- [[Tokio notes]]
+- [[Tokio]]
