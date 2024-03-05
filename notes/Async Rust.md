@@ -1,4 +1,11 @@
-## Core 
+## The keywords
+
+`.await`, per the `IntoFuture` trait (but, notably, *not* [the Keyword `await` page](https://doc.rust-lang.org/1.76.0/std/keyword.await.html)!):
+
+> The `.await` keyword desugars into a call to `IntoFuture::into_future` first before polling the future to completion. `IntoFuture` is implemented for all `T: Future` which means the `into_future` method will be available on all futures.
+
+This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Tokio notes|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
+## Mental model
 
 What is the Rust equivalent to this?
 
@@ -44,12 +51,14 @@ It *does* feel weird not to have a “good default” baked in, and given the pr
 
 ## Questions
 
-- What is the relationship between the [futures](https://docs.rs/futures/latest/futures/) crate and `std::future`? (And why the deuce is that not clearly documented in the docs for both?!?)
-    - It looks like the core traits were pulled over at 1.36.0, when it was stabilized, but the `futures` crate has a ton of other capabilities in it, e.g. its own executor.
-    - The answer is [found](https://rust-lang.github.io/async-book/01_getting_started/03_state_of_async_rust.html#language-and-library-support) in the Async book:
-        > - The most fundamental traits, types and functions, such as the [`Future`](https://doc.rust-lang.org/std/future/trait.Future.html) trait are provided by the standard library.
-        > - The `async/await` syntax is supported directly by the Rust compiler.
-        > - Many utility types, macros and functions are provided by the [`futures`](https://docs.rs/futures/) crate. They can be used in any async Rust application.
+What is the relationship between the [futures](https://docs.rs/futures/latest/futures/) crate and `std::future`? (And why the deuce is that not clearly documented in the docs for both?!?)
+
+- It looks like the core traits were pulled over at 1.36.0, when it was stabilized, but the `futures` crate has a ton of other capabilities in it, e.g. its own executor.
+- The answer is [found](https://rust-lang.github.io/async-book/01_getting_started/03_state_of_async_rust.html#language-and-library-support) in the Async book:
+> - The most fundamental traits, types and functions, such as the [`Future`](https://doc.rust-lang.org/std/future/trait.Future.html) trait are provided by the standard library.
+> - The `async/await` syntax is supported directly by the Rust compiler.
+> - Many utility types, macros and functions are provided by the [`futures`](https://docs.rs/futures/) crate. They can be used in any async Rust application.
+
 
 ---
 
