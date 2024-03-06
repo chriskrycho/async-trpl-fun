@@ -1,0 +1,3 @@
+Cliff Biffle’s OS built around the idea of using `async` as a core primitive. The async executor drives the OS in a form of cooperative (not preemptive) multitasking.[^preemptive] This is a *really* interesting example where the I/O-bound-vs.-CPU-bound thing is not even in view at all. Instead, Biffle is using it as a useful way to manage *state machines* without doing so by hand… since that’s what `async` blocks ultimately compile to: anonymous state machines which `impl Future`.
+
+[^preemptive]: Notably, you *can* allow preemption and interruption in lilos, you just don’t *have to*.

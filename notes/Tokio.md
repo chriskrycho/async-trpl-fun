@@ -1,2 +1,5 @@
 - async main with `#[tokio::main] async fn main() -> Result<()>`
 - analogous in *very* broad strokes to `async function main() { ... }` and then `await main()` in a Node thing.
+- tasks are a single allocation and require only 64 *bytes* of memory.
+    - For comparison, when you call `clone()` on Linux, you usually end up with *at least* 4KB because it allocates a whole page.
+- supplies `Async*` versions of the `std::io` objects. (`smol` has this too, in the form of its [async-io](https://github.com/smol-rs/async-io) library.)
