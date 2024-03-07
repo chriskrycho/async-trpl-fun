@@ -122,8 +122,85 @@ This is sort of adjacent to idempotency—but not identical, because of the cave
     - Likewise, `smol`’s `async_executor` ships [`Executor`](https://docs.rs/async-executor/1.8.0/async_executor/struct.Executor.html) and [`LocalExecutor`](https://docs.rs/async-executor/1.8.0/async_executor/struct.LocalExecutor.html) so users can choose.
 - `futures` provides equivalents to some key sync APIs from `std`: `AsyncBufRead`, `AsyncRead`, `AsyncSeek`, `AsyncWrite` (cf. [`std::io::BufRead`](), [`std::io::Read`](https://doc.rust-lang.org/1.76.0/std/io/trait.Read.html), [`std::io::Seek`](https://doc.rust-lang.org/1.76.0/std/io/trait.Seek.html), [`std::io::Write`](https://doc.rust-lang.org/1.76.0/std/io/trait.Write.html))
 
-## Lifetimes
+## Ownership
+
+The “invisible state machine”/reified type *really* prominent here—perhaps even more than they are with closures.
 
 Since `async { }` produces an anonymous `Future` type, a lot of the same dynamics as with closures appear. The ownership and lifetime dynamics are mostly invisible/implicit, but just like “closure captures” are ultimately a struct, potentially with borrowed data and therefore lifetime management, the same goes for `async` blocks.
 
-For a value captured by a closure, if it is stack-local but you try to push it into heap-allocated data (`Box::new(|| &v)` or likewise with `Arc` etc.), you have to use a `move` closure instead. The same thing goes for an async block!
+The trick is that each `.await` more or less ends up reifying *its own* data structure. It’s *kind of* like if you were translating this:
+
+```rust
+async fn get_em() {
+    let mut a = vec![1, 2, 3];
+    let mut b = String::from("hello");
+
+    a.push(4);
+    let mut more_vals = vec![5, 6, 7];
+    a.append(&mut more_vals);
+    println!("{a:#?}");
+    yield_now().await;
+
+    let first = Box::new(move || {
+        a.push(4);
+        println!("{a:#?}");
+    });
+
+    let c = "cool";
+    b.push_str(" ");
+    b.push_str(c);
+    b.push_str(" person");
+    println!("{b:#?}");
+    yield_now().await;
+}
+```
+
+…into this:
+
+```rust
+fn run() {
+    for f in async_get_em() {
+        f();
+    }
+}
+
+fn async_get_em() -> Vec<Box<dyn FnMut()>> {
+    let mut a = vec![1, 2, 3];
+    let mut b = String::from("hello");
+
+    let first = Box::new(move || {
+        a.push(4);
+        println!("{a:#?}");
+    });
+
+    let c = "cool";
+
+    let second = Box::new(move || {
+        b.push_str(" ");
+        b.push_str(c);
+        b.push_str(" person");
+        println!("{b:#?}");
+    });
+
+    vec![first, second]
+}
+```
+
+This isn’t exactly right, of course, but it is suggestive of the relevant mental intuitions in terms of *other* Rust concepts (though in both cases the captures are still invisible).
+
+### The `'static` bound
+
+How long does a task live? Great big 🤷🏻‍♂️ as far as the compiler is concerned for an `async` block in a *direct* sense: it is entirely up to the executor. That means, though, that an executor/runtime can *define* what it needs to be. However, it will often end up being `'static` precisely because: neither can the executor tell when a given task will wrap up. In some ways, this is the whole point, I think?
+
+As the Tokio docs note, though, this means the *type of the future produced by the block* has to be `'static`, which merely means that the task must own all of its data (though also note that ownership may include owning a reference to an `Arc` or similar!), because it needs to be able to live “arbitrarily” long: as long as the task itself exists, which might be as long as it is (a) not explicitly canceled or (b) the program shut down. The only way to guarantee that is with:
+
+- something which is statically guaranteed to be able to be borrowed the lifetime of the program, i.e. something which is explicitly `&'static`
+- something which the task itself owns: in that case it will be dropped when the task is
+
+### Why `async move`
+
+For a value captured by a closure, if it is stack-local but you try to push it into heap-allocated data (`Box::new(|| &v)` or likewise with `Arc` etc.), you have to use a `move` closure instead, `Box::new(move || v)`. The same thing goes for an async block!
+
+### `Send` bounds (e.g. in Tokio)
+
+The same thing applies to the types of the functions in use. When you invoke `tokio::task::spawn_on`, you are bound by its constraints on the future it takes. Since Tokio’s `spawn_on` can move tasks across threads, it constrains its argument to be `Future + Send + 'static` (and the same for the future’s `Output` associated type).
