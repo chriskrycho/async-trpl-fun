@@ -75,6 +75,7 @@ What is the relationship between the [futures](https://docs.rs/futures/latest/fu
 > - The `async/await` syntax is supported directly by the Rust compiler.
 > - Many utility types, macros and functions are provided by the [`futures`](https://docs.rs/futures/) crate. They can be used in any async Rust application.
 
+Additionally, the key types which look like they are duplicated in `futures-rs`… are just re-exported from `std::future`.
 
 ## Cancelation
 
