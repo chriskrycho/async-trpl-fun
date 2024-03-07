@@ -18,6 +18,12 @@ We are going to want to lean on the previous discussion of parallelism vs. concu
 
 Substitute in “async” for “Tokio” here to get a pretty reasonable summary take.
 
+## Language/library feature status
+
+The elephant in the room is: *wow* is there a lot of stuff that has not shipped, for years and years. 😑 We are going to need to address it and call out (particularly for print) that this is very much a snapshot of how things are *at this point in time*.
+
+If we choose to use Tokio, we are also going to need to be explicit about the reality that Tokio is not—and does not want to be!—the standard, and supplies some things which are likely to end up in stable (via `futures-rs` or otherwise) but also has its own opinions on top of that.
+
 ## I/O bound and CPU bound
 
 We don’t need to hyper-focus on the terminology, but giving people an intuition for the difference is probably important. I think the rough question to prime people’s pumps (as it were) is: “What keeps you from making progress? Is it talking over the network/reading and writing files? Or is it actually just processing the data you got from the network/file system?”

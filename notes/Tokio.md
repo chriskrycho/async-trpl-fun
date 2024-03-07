@@ -3,3 +3,4 @@
 - tasks are a single allocation and require only 64 *bytes* of memory.
     - For comparison, when you call `clone()` on Linux, you usually end up with *at least* 4KB because it allocates a whole page.
 - supplies `Async*` versions of the `std::io` objects. (`smol` has this too, in the form of its [async-io](https://github.com/smol-rs/async-io) library.)
+- minimal but necessary discussion of contention in [Shared State](https://tokio.rs/tokio/tutorial/shared-state): note that the concerns are basically the same here as they are in multi-threaded code in general, and the tradeoffs with alternatives (message passing, e.g.) are also similar.

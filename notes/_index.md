@@ -57,11 +57,13 @@ Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accur
 - “an inversion of control”, where the caller gets control over the flow of the body of the async function
 - a way of building state machines which are much less error prone because they are *not* managed by hand
 
-## Notable runtimes
+## Runtimes
 
 - [tokio](https://tokio.rs)
 - [smol](https://github.com/smol-rs/smol)
-- [futures](https://docs.rs/futures/latest/futures/) (this is complicated! `tokio` depends directly on `futures`, while `smol` uses a small 😑 subset of it called `futures-lite`)
+- [futures](https://docs.rs/futures/latest/futures/) (this is complicated! `tokio` depends directly on `futures`, while `smol` uses a small 😑 subset of it called `futures-lite`, but `futures::executor` *is a thing*)
+
+One thing to notice here is that Tokio’s dominance in the space (which is well-earned!) means it is easy to conflate “what Tokio does” with “how `async`/`.await` works”—but those are very much *not* the same things. E.g. *Tokio* supplies `join!` and `select!`, and others might as well, but they aren’t things which are necessarily part of the core language. And `join!` is a particularly interesting example because it is *on track to be stabilized*… but is not yet, and is only available on nightly, and [has no track to stabilization at this point](https://github.com/rust-lang/rust/issues/91642#issuecomment-992773288); while `select!` is not even currently available at all, for related reasons. (==TODO: Is tokio’s `join!` from `futures`? Probably!==)
 
 ## Questions
 
@@ -204,3 +206,9 @@ For a value captured by a closure, if it is stack-local but you try to push it i
 ### `Send` bounds (e.g. in Tokio)
 
 The same thing applies to the types of the functions in use. When you invoke `tokio::task::spawn_on`, you are bound by its constraints on the future it takes. Since Tokio’s `spawn_on` can move tasks across threads, it constrains its argument to be `Future + Send + 'static` (and the same for the future’s `Output` associated type).
+
+## Laziness
+
+- Failing to `.await` will get you in trouble.
+- The compiler helps… with a warning. But *only* a warning.
+- This is a tradeoff: it is what lets Rust hand a `Future` to *any* executor and let it do its thing in very different ways, and that really matters. What you do with a `no_std` context on some embedded system (_a la_ lilos) might look *very* different from what you want to do with something like Tokio which is intended to support, among other things, large web services on large servers with tons of heap memory and lots of CPU threads.
