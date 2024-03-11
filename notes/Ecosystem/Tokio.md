@@ -1,3 +1,7 @@
+---
+aliases:
+  - Tokio
+---
 - async main with `#[tokio::main] async fn main() -> Result<()>`
 - analogous in *very* broad strokes to `async function main() { ... }` and then `await main()` in a Node thing.
 - tasks are a single allocation and require only 64 *bytes* of memory.
@@ -38,7 +42,7 @@ This may be a general observation about the behavior of async runtimes in Rust, 
 
 The big thing to notice here is: this is classic “spooky action at a distance”. The runtime is being configured in some global sense, and there is no way to know *at the call site* for `tokio::spawn` whether things are set up correctly or not. You have to wait till runtime to find out whether you did it right.
 
-On the one hand, this makes calling `tokio::spawn` a bit “nicer” in that you can do it without passing around some kind of token type or handle for the runtime. On the other, it means there is no way to actually guarantee you have done it right. That is a bit of a surprise; it runs against how Rust programs are normally constructed. (Notably, [[smol]] does *not* work this way.) And, to be fair, Tokio expects you to usually just use the `#[tokio::main]`  macro to handle setting this up once in your main function, such that you never have to worry about it. In the cases you *do* want to care about it you can use `Runtime::spawn` (from `tokio::runtime`) instead of `tokio::spawn`, and get the same rough behavior you would from e.g. smol. And you could, in principle, lint to require *either* `#[tokio::main]` *or* using `Runtime::spawn` or something like that.
+On the one hand, this makes calling `tokio::spawn` a bit “nicer” in that you can do it without passing around some kind of token type or handle for the runtime. On the other, it means there is no way to actually guarantee you have done it right. That is a bit of a surprise; it runs against how Rust programs are normally constructed. (Notably, [[Ecosystem/smol]] does *not* work this way.) And, to be fair, Tokio expects you to usually just use the `#[tokio::main]`  macro to handle setting this up once in your main function, such that you never have to worry about it. In the cases you *do* want to care about it you can use `Runtime::spawn` (from `tokio::runtime`) instead of `tokio::spawn`, and get the same rough behavior you would from e.g. smol. And you could, in principle, lint to require *either* `#[tokio::main]` *or* using `Runtime::spawn` or something like that.
 
 You could argue this is basically “progressive disclosure of complexity” to make the base case trivial. I still don’t love it. It still feels like a bit of a footgun!
 

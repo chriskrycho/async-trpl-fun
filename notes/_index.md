@@ -1,20 +1,27 @@
-## Structure
+## Notes
 
 - [[_index#Overview|Overview]]
 - [[Book notes]]
 - [[live reload server]]
-- [[lilos]]
+- [[Ecosystem/_index|Ecosystem]]:
+    - [[Ecosystem/Tokio|Tokio]]
+    - [[Ecosystem/smol|smol]]
+    - [[Ecosystem/async_std|async_std]]
+    - [[Ecosystem/futures-rs|futures-rs]]
+- Other interesting crates/projects using async
+    - [[lilos]]
 
-# Overview
-## The keywords
+
+## Overview
+### The keywords
 
 `.await`, per the `IntoFuture` trait (but, notably, *not* [the Keyword `await` page](https://doc.rust-lang.org/1.76.0/std/keyword.await.html)!):
 
 > The `.await` keyword desugars into a call to `IntoFuture::into_future` first before polling the future to completion. `IntoFuture` is implemented for all `T: Future` which means the `into_future` method will be available on all futures.
 
-This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Tokio|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
+This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Ecosystem/Tokio|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
 
-## Mental model
+### Mental model
 
 What is the Rust equivalent to this?
 
@@ -57,11 +64,16 @@ Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accur
 - “an inversion of control”, where the caller gets control over the flow of the body of the async function
 - a way of building state machines which are much less error prone because they are *not* managed by hand
 
+### “Under the hood”
+
+Ultimately, tasks are stored as anonymous types—analogous to the captures for closures. This means
+
 ## Runtimes
 
 - [tokio](https://tokio.rs)
 - [smol](https://github.com/smol-rs/smol)
-- [futures](https://docs.rs/futures/latest/futures/) (this is complicated! `tokio` depends directly on `futures`, while `smol` uses a small 😑 subset of it called `futures-lite`, but `futures::executor` *is a thing*)
+- [futures](https://docs.rs/futures/latest/futures/) (this is complicated! `tokio` depends directly on `futures`, while `smol` uses a small 😑 subset of it called `futures-lite`, but `futures::executor` *is a thing*); see also [[Ecosystem/futures-rs]]
+- [async-std](https://async.rs) (see also [[Ecosystem/async_std]])
 
 One thing to notice here is that Tokio’s dominance in the space (which is well-earned!) means it is easy to conflate “what Tokio does” with “how `async`/`.await` works”—but those are very much *not* the same things. E.g. *Tokio* supplies `join!` and `select!`, and others might as well, but they aren’t things which are necessarily part of the core language. And `join!` is a particularly interesting example because it is *on track to be stabilized*… but is not yet, and is only available on nightly, and [has no track to stabilization at this point](https://github.com/rust-lang/rust/issues/91642#issuecomment-992773288); while `select!` is not even currently available at all, for related reasons. (==TODO: Is tokio’s `join!` from `futures`? Probably!==)
 
@@ -79,7 +91,7 @@ Additionally, the key types which look like they are duplicated in `futures-rs`�
 
 ## Cancelation
 
-Thinking about this pair of comments from [[Tokio|Tokio]]’s docs for `JoinHandle`:
+Thinking about this pair of comments from [[Ecosystem/Tokio|Tokio]]’s docs for `JoinHandle`:
 
 > The `&mut JoinHandle<T>` type is cancel safe. If it is used as the event in a `tokio::select!` statement and some other branch completes first, then it is guaranteed that the output of the task is not lost.
 > 
@@ -213,3 +225,39 @@ The same thing applies to the types of the functions in use. When you invoke `to
 - Failing to `.await` will get you in trouble.
 - The compiler helps… with a warning. But *only* a warning.
 - This is a tradeoff: it is what lets Rust hand a `Future` to *any* executor and let it do its thing in very different ways, and that really matters. What you do with a `no_std` context on some embedded system (_a la_ lilos) might look *very* different from what you want to do with something like Tokio which is intended to support, among other things, large web services on large servers with tons of heap memory and lots of CPU threads.
+
+## Error handling
+
+Happily, the error-handling story is… basically identical with the error-handling story *without* `async`/`.await`. The `?` operator Just Works™ when you return anything with `impl Try`.[^try-impls] Since `async fn` and `.await` desugar into `-> impl Future` returns, all the normal approaches you would take with error handling—using `std::error`, pulling in whatever combination of `anyhow`, `thiserror`, `miette`, etc., hand-writing your own reporter, you name it—will all Just Work. It requires the same degree of care for thinking about it as ever, but not *more* care.
+
+A good example of this from Tokio (but equally applicable elsewhere):
+
+```rust
+use tokio::io;
+
+#[tokio::main]
+async fn main() -> io::Result<()> {
+    // ...
+}
+```
+
+This will Just Work™. (And Tokio’s `io::Result` is just `std::io::Result` re-exported.) You can do the same thing in a non-Tokio context; e.g. `futures::executor::block_on`:
+
+```rust
+use std::io::Result;
+use futures::{
+    AsyncReadExt,
+    executor::block_on,
+};
+
+fn main() -> Result<()> {
+    let result = block_on(hello());
+    println!("{result}");
+}
+
+async fn hello() -> &'static str {
+    "Hello, world!"
+}
+```
+
+[^try-impls]: At present that is `Option<T>`, `Result<T, E>`, `Poll<Result<T, E>>`, `Poll<Option<Result<T, E>>>`, and `ControlFlow<B, C>`.

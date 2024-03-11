@@ -1,3 +1,7 @@
+---
+aliases:
+  - smol
+---
 An alternative, smaller 🙄 async runtime which aims to feel similar to Tokio but is (or at least claims to be?) much lighter weight. Also makes some better (in my view, anyway) API choices.
 
 For example, `smol::spawn` will lazily instantiate a global singleton executor if you call it directly, but it recommends using `Executor::spawn` or `LocalExecutor::spawn`, which have the API design I would actually expect:
