@@ -37,3 +37,11 @@ Is this something we actually need to dig into? It may warrant *mentioning*, at 
 > A Tokio task is an asynchronous green thread.
 
 The key is that a “green thread”—a “task”—enable concurrency but do *not* enable parallelism. You can *combine* OS-level threads, processes, or other means of parallelism *with* task-based concurrency, though.
+
+## Scope/scale
+
+The [[Ecosystem/Tokio|Tokio]] tutorial, building a mini version of Redis, is (a) very tightly coupled to that specific domain example, and (b) not short! It does have the advantage of showing quite a few parts of the system, though.
+
+- [ ] Figure out how long the Tokio mini-Redis example is in total
+
+Unlike the Tokio tutorial, we should absolutely *not* just resort to skipping/hand-waving it. We need to build whatever we build end to end. The min-redis thing handwaves *most* of it. Of course, how much is “end to end” here? We’re not reimplementing parts of the standard library in general. But more than the level of “[`write_decimal`](https://github.com/tokio-rs/mini-redis/blob/tutorial/src/connection.rs#L225-L238) is implemented by mini-redis” that the Tokio tutorial does a lot of. (It’s *fine* that that’s what Tokio’s tutorial does, just not appropriate for the book.)

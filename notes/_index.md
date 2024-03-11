@@ -13,13 +13,6 @@
 
 
 ## Overview
-### The keywords
-
-`.await`, per the `IntoFuture` trait (but, notably, *not* [the Keyword `await` page](https://doc.rust-lang.org/1.76.0/std/keyword.await.html)!):
-
-> The `.await` keyword desugars into a call to `IntoFuture::into_future` first before polling the future to completion. `IntoFuture` is implemented for all `T: Future` which means the `into_future` method will be available on all futures.
-
-This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Ecosystem/Tokio|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
 
 ### Mental model
 
@@ -64,9 +57,40 @@ Cliff Biffle [asserts](https://cliffle.com/blog/async-inversion/) (I think accur
 - “an inversion of control”, where the caller gets control over the flow of the body of the async function
 - a way of building state machines which are much less error prone because they are *not* managed by hand
 
+Nick Cameron [writes](https://www.ncameron.org/blog/what-is-an-async-runtime/#:~:text=An%20async%20function%20is%20just%20a%20convenient%20way%20to%20write%20a%20function%20which%20returns%20a%20future.%20All%20that%20is%20required%20is%20for%20something%20to%20call%20poll.):
+
+> An async function is just a convenient way to write a function which returns a future. All that is required is for something to call `poll`.…
+> 
+> But it turns out that how one calls the `poll` function is an important and difficult question. We don't want to call it too often because that would waste CPU cycles and potentially starve other tasks (we'll get to what exactly a task is soon) from making progress. We don't want to call it too infrequently though because that means our future won't make progress as quickly as it should.
+> 
+> Furthermore, there is no best way to solve this problem. Different constraints and environments make different approaches more or less optimal.…
+>
+> Operating systems provide functionality for this kind of asynchronous IO, but it is very low-level (e.g., the epoll API). A good executor must interact with the OS so that it can wake futures at the optimal time (this is sometimes called a reactor).
+
+### Keywords
+
+`.await`, per the `IntoFuture` trait (but, notably, *not* [the Keyword `await` page](https://doc.rust-lang.org/1.76.0/std/keyword.await.html)!):
+
+> The `.await` keyword desugars into a call to `IntoFuture::into_future` first before polling the future to completion. `IntoFuture` is implemented for all `T: Future` which means the `into_future` method will be available on all futures.
+
+This means you can always call `.await` on any type which implements `Future`, but *also* on any type which implements `IntoFuture`. Thus, e.g., [[Ecosystem/Tokio|Tokio]]’s [`JoinHandle`](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html) (its implementation of an `async` version of [`std::thread::JoinHandle`](https://doc.rust-lang.org/1.76.0/std/thread/struct.JoinHandle.html)) has an `impl Future`, so you can directly `.await` it as a result of the desuraging.
+
+### Types/libraries
+
+- `std::future::`
+    - `Future`
+    - `IntoFuture`
+- `std::task::`
+    - `Context`
+    - `Poll`
+    - `Waker`
+- `std::pin::Pin`
+
 ### “Under the hood”
 
-Ultimately, tasks are stored as anonymous types—analogous to the captures for closures. This means
+- Ultimately, tasks are stored as anonymous types—analogous to the captures for closures. This has implications for what you (implicitly!) store in them.
+- Support for `async fn` in trait: uses GATs because `Future`s need to refer to any captures via lifetime. Wheeeee.
+- 
 
 ## Runtimes
 

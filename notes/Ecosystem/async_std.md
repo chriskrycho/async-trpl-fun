@@ -18,5 +18,6 @@ aliases:
 
 - supports `futures` crate
 - aims to provide same API as `std` itself
-- similar in this regard to both [[Ecosystem/smol]] and [[Ecosystem/Tokio]]
+- similar in this regard to both [[Ecosystem/smol|smol]] and [[Ecosystem/Tokio|Tokio]]
+- shares a bunch of the underlying crates with smol
 
