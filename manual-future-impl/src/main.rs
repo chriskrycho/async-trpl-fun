@@ -4,7 +4,8 @@ mod mini_tokio;
 use std::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll},
+    sync::{Arc, Mutex},
+    task::{Context, Poll, Waker},
     thread,
     time::{Duration, Instant},
 };
@@ -13,58 +14,92 @@ use std::{
 async fn main() {
     mini_tokio::run(async {
         let out = Delay::until(Instant::now() + Duration::from_millis(10)).await;
-        assert_eq!(out, "done");
+        println!("Hello, from mini_tokio");
+        assert_eq!(out, ());
     });
 
     alt::manual();
 
     let future = Delay::until(Instant::now() + Duration::from_millis(10));
-
     let out = future.await;
-    assert_eq!(out, "done");
+    println!("Hello, from regular tokio");
+    assert_eq!(out, ());
 }
 
 struct Delay {
     when: Instant,
+    waker: Option<Arc<Mutex<Waker>>>,
 }
 
 impl Delay {
     fn until(time: Instant) -> Delay {
-        Delay { when: time }
+        Delay {
+            when: time,
+            waker: None,
+        }
     }
 }
 
 impl Future for Delay {
-    type Output = &'static str;
+    type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // In the first case, everything is already done, so there is no need
-        // for extra handling. In the second case, though, to avoid blocking the
-        // thread (because otherwise the executor will just keep calling `poll`)
-        // spawn a *different* thread and wait over there until the time has
-        // passed. Note that in a real implementation, this would go on a thread
-        // pool or something like that to avoid spawning an arbitrary number of
-        // threads for work!
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // If everything is already done, there is no need for extra handling.
         if Instant::now() >= self.when {
-            println!("Hello, world!");
-            Poll::Ready("done")
-        } else {
-            let waker = cx.waker().clone();
-            let when = self.when;
+            return Poll::Ready(());
+        }
 
+        // Otherwise, schedule the work. If this is the first time the `Future`
+        // is called, we should spawn the timer thread. If it is *not* the first
+        // time, the thread should already exist; make sure the stored `Waker`
+        // matches the current task’s waker.
+        if let Some(waker) = &self.waker {
+            let mut waker = waker.lock().unwrap();
+
+            // This is the check for whether the wakers “match”. The `Delay` can
+            // move to different tasks between calls to `poll`, for example if
+            // the runtime needs to for scheduling reasons *or* if it gets moved
+            // via `async move { ... }` on the user side. If it has been moved,
+            // the waker from the context will be different, so we switch to use
+            // that one instead of the original (which gets abandoned).
+            if !waker.will_wake(cx.waker()) {
+                *waker = cx.waker().clone();
+            }
+        } else {
+            // To avoid blocking the thread (because otherwise the executor will
+            // just keep calling `poll`) spawn a *different* thread and wait
+            // over there until the time has passed. Note that in a real
+            // implementation, this would go on a thread pool or something like
+            // that to avoid spawning an arbitrary number of threads for work!
+            let when = self.when;
+            let waker = Arc::new(Mutex::new(cx.waker().clone()));
+            self.waker = Some(waker.clone()); // push in a reference only…
+
+            // …because we also need to hand the waker to the thread.
             // Needs to be `move` because it is going to take ownership of the
             // waker, i.e. move it to the spawned thread.
             thread::spawn(move || {
                 let now = Instant::now();
 
+                // Not time yet? Sleep till it is.
                 if now < when {
                     thread::sleep(when - now);
                 }
 
-                waker.wake();
+                // Otherwise, notify the caller via the waker.
+                let waker = waker.lock().unwrap();
+                waker.wake_by_ref();
             });
-
-            Poll::Pending
         }
+
+        // Here, the waker is stored correctly and the timer thread is started,
+        // but the duration has not elapsed, since that was the first thing the
+        // function checks. Thus the result *must* be `Pending`.
+        //
+        // The trait contract requires that the waker for the current context be
+        // signaled once it is ready when you return `Pending` like this, so
+        // is a promise that the waker from the most recent `Context` will be
+        // called once the time elapses, to avoid hanging forever.
+        Poll::Pending
     }
 }
