@@ -1,4 +1,5 @@
 mod alt;
+mod mini_tokio;
 
 use std::{
     future::Future,
@@ -9,6 +10,11 @@ use std::{
 
 #[tokio::main]
 async fn main() {
+    mini_tokio::run(async {
+        let out = Delay::until(Instant::now() + Duration::from_millis(10)).await;
+        assert_eq!(out, "done");
+    });
+
     alt::manual();
 
     let future = Delay::until(Instant::now() + Duration::from_millis(10));
