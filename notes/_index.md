@@ -98,7 +98,7 @@ Tokio has a fair number of “do this in the right order or things will `panic!(
 
 - [[#Cancelation]] and cleanup/`Drop` (no `AsyncDrop` behavior today!)
 - Forgetting to make sure a waker gets called if you return `Poll::Pending`, else the whole task will hang—see [[Key types/Poll|Poll]] for more. (I *saw* this exact behavior when I tried implementing `Future` for the `Delay` type used in the Tokio tutorial before looking at their implementation, in fact![^why-to-type-it-in])
-- 
+- It’s worth being clear that there are *far* more hazards in general for implementors than for users of runtimes, e.g. `impl Future` needs to handle calls to `Future::poll()` with different `Waker` instances, since you get a different `Waker` from different tasks, i.e. if you have multiple `async` blocks (I *think* that’s a “correct” example of that behavior). But this is, in general, an implementor hazard, since the *vast* majority of both “normal” library code and especially app code will not be `impl Future`-ing, but instead “just” writing `async` blocks and `.await`-ing various futures, and the majority of *those* will also be generated via other `async` blocks, and so on.
 
 [^why-to-type-it-in]: This is one huge reason to do the “just type it in” mechanic I describe in [this blog post](https://v5.chriskrycho.com/journal/you-have-to-type-it-out/): if you use it as a way to try to do things yourself, too, not *merely* copying, you further improve the quality of your learning.
 
