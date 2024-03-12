@@ -84,13 +84,12 @@ This means you can always call `.await` on any type which implements `Future`, b
     - `Context`
     - `Poll`
     - `Waker`
-- `std::pin::Pin`
+- [[Key types/Pin|Pin]] (and `Unpin`)
 
 ### “Under the hood”
 
 - Ultimately, tasks are stored as anonymous types—analogous to the captures for closures. This has implications for what you (implicitly!) store in them.
 - Support for `async fn` in trait: uses GATs because `Future`s need to refer to any captures via lifetime. Wheeeee.
-- 
 
 ## Runtimes
 
