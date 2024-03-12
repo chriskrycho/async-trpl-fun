@@ -90,6 +90,17 @@ This means you can always call `.await` on any type which implements `Future`, b
 
 - Ultimately, tasks are stored as anonymous types—analogous to the captures for closures. This has implications for what you (implicitly!) store in them.
 - Support for `async fn` in trait: uses GATs because `Future`s need to refer to any captures via lifetime. Wheeeee.
+- One key constraint in the design—and the source of a lot of the complexity when you poke at *manual* future implementations (as well as runtime implementations) is what you might think of as “bidirectional communication” between executor and future. The executor *polls* the future, but to avoid just doing that continually (and thus blocking on it!) the task *wakes* the future, i.e. *notifies the executor* that the future is ready to be polled again.
+
+### Hazards
+
+Tokio has a fair number of “do this in the right order or things will `panic!()`.” More generally, there are significant caveats ways you can hang yourself:
+
+- [[#Cancelation]] and cleanup/`Drop` (no `AsyncDrop` behavior today!)
+- Forgetting to make sure a waker gets called if you return `Poll::Pending`, else the whole task will hang—see [[Key types/Poll|Poll]] for more. (I *saw* this exact behavior when I tried implementing `Future` for the `Delay` type used in the Tokio tutorial before looking at their implementation, in fact![^why-to-type-it-in])
+- 
+
+[^why-to-type-it-in]: This is one huge reason to do the “just type it in” mechanic I describe in [this blog post](https://v5.chriskrycho.com/journal/you-have-to-type-it-out/): if you use it as a way to try to do things yourself, too, not *merely* copying, you further improve the quality of your learning.
 
 ## Runtimes
 
