@@ -9,7 +9,11 @@
         - `std::task::{Context, Waker, Poll}`
         - some variety of `block_on`, since that’s exposed by basically every executor out there
             - maaaaybe what `block_on` actually does? See comment about the async book above, though.
-- The Tokio tutorial is interesting, but I do *not* feel like it actually gives a coherent end-to-end mental model for thinking about async in Rust, despite covering a *lot* of ground. (Part of that, arguably, is because there is no chapter in The Book for it to refer to for that conceptual foundation!) Further: I think this is because their tutorial really *has* to do two separate things: introduce the conceptual machinery for async/await *and* introduce enough of the pieces of Tokio for users to be able to do useful things with it.
+- The Tokio tutorial is interesting, but I do *not* feel like it actually gives a coherent end-to-end mental model for thinking about async in Rust, despite covering a *lot* of ground. (Part of that, arguably, is because there is no chapter in The Book for it to refer to for that conceptual foundation!)
+    - Further: I think this is because their tutorial really *has* to do two separate things: introduce the conceptual machinery for async/await *and* introduce enough of the pieces of Tokio for users to be able to do useful things with it.
+    - Also: they (reasonably, but not something we can follow) have a lot of things like `// Some asynchronous logic` as the body of `async fn action() { }`. We are obviously going to need to *not* hand-wave that.
+
+---
 
 We are going to want to lean on the previous discussion of parallelism vs. concurrency in the book, which I *believe* exists around threading. When we reintroduce it is likely the time to use it as a way to distinguish between what threads do well and what tasks do well. Tokio’s explanation here is useful:
 
