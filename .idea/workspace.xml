@@ -3,16 +3,17 @@
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="ALL" />
   </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/double-await-oh-no/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/lrrs/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/manual-future-impl/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/minimalest/Cargo.toml" />
+    <cargoProject FILE="$PROJECT_DIR$/tokio-streaming/Cargo.toml" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="340fe6e8-3d0b-4a6b-995a-5554086b8b1e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/async-trpl-fun.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/cody_history.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/double-await-oh-no/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/double-await-oh-no/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/double-await-oh-no/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/double-await-oh-no/src/main.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/notes/_index.md" beforeDir="false" afterPath="$PROJECT_DIR$/notes/_index.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -22,8 +23,59 @@
   <component name="CodyActiveAccount">
     <option name="activeAccountId" value="VXNlcjoyNDU2NTE=" />
   </component>
+  <component name="FormatOnSaveOptions">
+    <option name="myRunOnSave" value="true" />
+    <option name="myAllFileTypesSelected" value="false" />
+    <option name="mySelectedFileTypes">
+      <set>
+        <option value="ActionScript" />
+        <option value="CSS" />
+        <option value="CassandraQL" />
+        <option value="DTD" />
+        <option value="ECMAScript 6" />
+        <option value="Flow" />
+        <option value="HTML" />
+        <option value="HTTP Request" />
+        <option value="HiveQL" />
+        <option value="JSHint" />
+        <option value="JSON" />
+        <option value="JSON-lines" />
+        <option value="JSON5" />
+        <option value="JSX Harmony" />
+        <option value="Jade" />
+        <option value="JavaScript" />
+        <option value="Less" />
+        <option value="Makefile" />
+        <option value="NatVis" />
+        <option value="PostCSS" />
+        <option value="QmlType" />
+        <option value="Qt UI file" />
+        <option value="RNG Compact" />
+        <option value="Redis" />
+        <option value="Rust" />
+        <option value="SCSS" />
+        <option value="SQL" />
+        <option value="SVG" />
+        <option value="Sass" />
+        <option value="Shell Script" />
+        <option value="SourceMap" />
+        <option value="TOML" />
+        <option value="TypeScript" />
+        <option value="TypeScript JSX" />
+        <option value="Vue.js" />
+        <option value="XHTML" />
+        <option value="XML" />
+        <option value="YAML" />
+        <option value="qrc" />
+        <option value="tsconfig" />
+      </set>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$USER_HOME$/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-stream-0.1.14/src/stream_ext/next.rs" root0="SKIP_INSPECTION" />
   </component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="7u7hflhw" />
@@ -31,9 +83,9 @@
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 5
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
   <component name="ProjectId" id="2deFnuqrGOty9RFWqGqmSTrhO1D" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -46,14 +98,23 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "f494ebdc",
+    "git-widget-placeholder": "37392463",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "settings.editor.selected.configurable": "actions.on.save",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RsExternalLinterProjectSettings">
+    <option name="tool" value="Clippy" />
+  </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="RustfmtProjectSettings">
+    <option name="useRustfmt" value="true" />
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -63,7 +124,9 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1710360807997</updated>
-      <workItem from="1710360809134" duration="22000" />
+      <workItem from="1710360809134" duration="1236000" />
+      <workItem from="1710369070071" duration="7000" />
+      <workItem from="1710369081167" duration="3139000" />
     </task>
     <servers />
   </component>
