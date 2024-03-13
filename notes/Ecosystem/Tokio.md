@@ -49,4 +49,11 @@ You could argue this is basically “progressive disclosure of complexity” to 
 ## Questions
 
 - Why did they choose the `Async(Read|Write)` and `Async(Read|Write)Ext` pattern, instead of doing the same thing that `Iterator` does and implementing it directly on the trait?
+
+## Commentary
+
+### On `select!`
+
+- I think `select!` does too many things, and its syntax fits weirdly with the rest of the language. It is similar to, but weirdly different from, normal pattern-matching.
+- It also expands to explicitly `poll`-ing on all the futures exposed in its branches, and `.await`-ing the resulting top-level `Future`.
 - 
