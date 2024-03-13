@@ -9,18 +9,28 @@ use tokio::sync::oneshot;
 
 #[tokio::main]
 async fn main() {
-    let (tx1, rx1) = oneshot::channel::<String>();
-    let (tx2, rx2) = oneshot::channel::<String>();
+    // Tokio’s `Receiver` type implements `Future`, so `rx1` and `rx2` are
+    // `.await`-able. This means that they can be `select!`ed on directly, with
+    // no extra ceremony: see below!
+    let (tx1, rx1) = oneshot::channel();
+    let (tx2, rx2) = oneshot::channel();
 
     tokio::spawn(async {
-        let _ = tx1.send("Hello".into());
+        let _ = tx1.send("Hello");
     });
 
     tokio::spawn(async {
-        let _ = tx2.send("World".into());
+        let _ = tx2.send("World");
     });
 
-    MySelect { rx1, rx2 }.await
+    tokio::select! {
+        val = rx1 => {
+            println!("rx1 completed first with '{val:?}'");
+        }
+        val = rx2 => {
+            println!("rx2 completed first with '{val:?}'");
+        }
+    }
 }
 
 struct MySelect<A, B>
