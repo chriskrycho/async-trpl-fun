@@ -1,3 +1,14 @@
+## Structure
+
+The chapter needs to tackle two big things:
+
+- Conceptual machinery: building the mental model for what async is and how it works
+- Concrete mechanics: building something small but *real* with async
+
+(That’s just saying “what a programming book should do” in some sense, but it’s helpful for me in thinking explicitly about the two pieces.)
+
+## Misc. observations
+
 - The [_Asynchronous Programming in Rust_ book](https://rust-lang.github.io/async-book/) exists! We can lean on that for “here are additional materials to go get a deeper dive.” It is incomplete, but it includes a chapter on building a small executor.
 - Two broad approaches: top down (“build something with Tokio/Smol/whatever”) and bottom up (“here are the core types and how they work together”). Can we synthesize the two, bouncing back and forth?
 - Length:
@@ -42,6 +53,8 @@ Is this something we actually need to dig into? It may warrant *mentioning*, at 
 > A Tokio task is an asynchronous green thread.
 
 The key is that a “green thread”—a “task”—enable concurrency but do *not* enable parallelism. You can *combine* OS-level threads, processes, or other means of parallelism *with* task-based concurrency, though.
+
+(There is some question/discussion about whether “green thread” is appropriate as a description of Rust’s async. I don’t think the term matters, but we may need a callout which addresses it.)
 
 ## Scope/scale
 
