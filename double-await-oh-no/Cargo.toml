@@ -1,5 +1,5 @@
 [package]
-name = "understand-select-better"
+name = "double-await-oh-no"
 version = "0.1.0"
 edition = "2021"
 

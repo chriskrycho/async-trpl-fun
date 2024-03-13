@@ -1,5 +1,5 @@
-use std::pin::pin;
 use futures::executor::block_on;
+use std::pin::pin;
 
 fn main() {
     let mut me_future = pin!(get_me());
