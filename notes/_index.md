@@ -127,7 +127,7 @@ Additionally, the key types which look like they are duplicated in `futures-rs`�
 
 Fundamentally, canceling is related to `Drop`, because (as the Tokio tutorial puts it) “cancellation is performed by dropping a future.” However, one thing which stands out to me about cancellation right up front: Intuitively, I *think* `join!` should have basically all the same downsides as JS’ `Promise.prototype.all`. If the task hangs forever, it hangs forever—and any references it has *also* hang forever. That means it will never trigger any `Drop` implementation, because it does not get dropped!
 
-That means that while `Drop` means cancellation, *actually making that happen* seems like it might be non-trivial—at least, without involving something timeouts or some other means of preemption.
+That means that while `Drop` means cancellation, *actually making that happen* seems like it might be non-trivial—at least, without involving something timeouts or some other means of preemption. For example (pulling on the Tokio tutorial again): if you’re using channels to communicate, you need to handle the case where one of them sends its close message (indicating that *it* got dropped), and do the work to drop your own side so it does not “dangle”. It won’t happen automatically!
 
 > [!note]
 > It is *not* the same as e.g. `Promise` rejection in JS. Rather, it is as if a JS `Promise` *could not* reject but were always `Promise<Result<T, E>>`, e.g. using [True Myth](https://true-myth.js.org) or some other such library’s `Result` type.

@@ -7,16 +7,32 @@ use std::{
 use futures::Future;
 use tokio::sync::oneshot;
 
+async fn some_operation() -> String {
+    "Cool".into()
+}
+
 #[tokio::main]
 async fn main() {
     // Tokio’s `Receiver` type implements `Future`, so `rx1` and `rx2` are
     // `.await`-able. This means that they can be `select!`ed on directly, with
     // no extra ceremony: see below!
-    let (tx1, rx1) = oneshot::channel();
+    let (mut tx1, rx1) = oneshot::channel();
     let (tx2, rx2) = oneshot::channel();
 
     tokio::spawn(async {
-        let _ = tx1.send("Hello");
+        tokio::select! {
+            val = some_operation() => {
+                let _ = tx1.send(val);
+            }
+            _ = tx1.closed() => {
+                // because this is using `select!` and we explicitly handle the
+                // case where the `Sender` is `closed` (because the associated
+                // `Receiver` was either dropped or had its `close()` method
+                // called explicitly), `some_operation()` is cancelled and any
+                // state *it* holds is dropped, and we also here drop `tx1`. The
+                // overall task completes.
+            }
+        }
     });
 
     tokio::spawn(async {
