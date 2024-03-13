@@ -123,7 +123,14 @@ What is the relationship between the [futures](https://docs.rs/futures/latest/fu
 
 Additionally, the key types which look like they are duplicated in `futures-rs`… are just re-exported from `std::future`.
 
-## Cancelation
+## Cancellation
+
+Fundamentally, canceling is related to `Drop`, because (as the Tokio tutorial puts it) “cancellation is performed by dropping a future.” However, one thing which stands out to me about cancellation right up front: Intuitively, I *think* `join!` should have basically all the same downsides as JS’ `Promise.prototype.all`. If the task hangs forever, it hangs forever—and any references it has *also* hang forever. That means it will never trigger any `Drop` implementation, because it does not get dropped!
+
+That means that while `Drop` means cancellation, *actually making that happen* seems like it might be non-trivial—at least, without involving something timeouts or some other means of preemption.
+
+> [!note]
+> It is *not* the same as e.g. `Promise` rejection in JS. Rather, it is as if a JS `Promise` *could not* reject but were always `Promise<Result<T, E>>`, e.g. using [True Myth](https://true-myth.js.org) or some other such library’s `Result` type.
 
 Thinking about this pair of comments from [[Ecosystem/Tokio|Tokio]]’s docs for `JoinHandle`:
 
@@ -131,7 +138,7 @@ Thinking about this pair of comments from [[Ecosystem/Tokio|Tokio]]’s docs for
 > 
 > If a `JoinHandle` is dropped, then the task continues running in the background and its return value is lost.
 
-This is an important distinction. The behavior of the task when *dropped* is the same as it is for `std::thread::JoinHandle`, *and* it is safe for cancellation. Cancellation is a distinct concept from `Drop`. Cancellation is sometimes implicit, e.g. the result of joining a couple tasks and accepting the first one to finish (e.g. `tokio::select!(future_a, future_b).
+This is an important distinction. The behavior of the task when *dropped* is the same as it is for `std::thread::JoinHandle`, *and* it is safe for cancellation. Cancellation is a distinct concept from `Drop`, *even though `Drop` is the key way to perform cancellation*. Cancellation is sometimes implicit, e.g. the result of joining a couple tasks and accepting the first one to finish (e.g. `tokio::select!(future_a, future_b).
 
 On the one hand, it is to the community’s credit that there is detailed documentation of cancellation safety (e.g. in [the `tokio::select!` documentation](https://docs.rs/tokio/latest/tokio/macro.select.html)). On the other hand, it seems like a fairly obvious footgun! It is also not 100% obvious to me whether “cancellation safety” _per se_ is actually rigorously defined. These seem fairly different, for example (_ibid._):
 
