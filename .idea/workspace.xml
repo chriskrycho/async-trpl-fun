@@ -12,8 +12,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c32a1c71-60a2-46fe-84dd-a2070639e930" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/notes/Ecosystem/Tokio.md" beforeDir="false" afterPath="$PROJECT_DIR$/notes/Ecosystem/Tokio.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notes/_index.md" beforeDir="false" afterPath="$PROJECT_DIR$/notes/_index.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/double-await-oh-no/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/double-await-oh-no/src/main.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,7 +46,7 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "fb8f9e09",
+    "git-widget-placeholder": "20ce3521",
     "last_opened_file_path": "/Users/chris/dev/chriskrycho/async-trpl-fun",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -70,7 +69,7 @@
       <option name="presentableId" value="Default" />
       <updated>1710335981441</updated>
       <workItem from="1710335982464" duration="1818000" />
-      <workItem from="1710343792220" duration="1461000" />
+      <workItem from="1710343792220" duration="2066000" />
     </task>
     <servers />
   </component>

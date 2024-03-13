@@ -4,10 +4,13 @@ use futures::executor::block_on;
 fn main() {
     let mut me_future = pin!(get_me());
 
-    // This will panic!
     block_on(async {
-        (&mut me_future).await;
-        (&mut me_future).await;
+        let val = (&mut me_future).await;
+        println!("{val:?}");
+
+        // This will panic. 🫨
+        let val = (&mut me_future).await;
+        println!("{val:?}");
     });
 }
 
