@@ -80,12 +80,21 @@ This means you can always call `.await` on any type which implements `Future`, b
 - `std::future::`
     - `Future`
     - `IntoFuture`
+
 - `std::task::`
     - `Context`
     - `Poll`
     - `Waker`
-- [[Key types/Pin|Pin]] (and `Unpin`)
 
+- [[Key types/Pin|std::pin::Pin]] (and `std::marker::Unpin`)
+
+- `futures::`
+    - `future::FutureExt`
+    - `stream::`
+        - `Stream`
+        - `StreamExt`
+
+        …with *some* degree of discussion, unless it moves soon enough, about the way it is being stabilized as `AsyncIterator`
 ### “Under the hood”
 
 - Ultimately, tasks are stored as anonymous types—analogous to the captures for closures. This has implications for what you (implicitly!) store in them.
@@ -96,11 +105,11 @@ This means you can always call `.await` on any type which implements `Future`, b
 
 Tokio specifically has a fair number of “do this in the right order or things will `panic!()`.” More generally, there are significant caveats ways you can hang yourself:
 
-- [[#Cancelation]] and cleanup/`Drop` (no `AsyncDrop` behavior today!)
+- [[#Cancellation]] and cleanup/`Drop` (no `AsyncDrop` behavior today!)
 - Forgetting to make sure a waker gets called if you return `Poll::Pending`, else the whole task will hang—see [[Key types/Poll|Poll]] for more. (I *saw* this exact behavior when I tried implementing `Future` for the `Delay` type used in the Tokio tutorial before looking at their implementation, in fact![^why-to-type-it-in])
 - It’s worth being clear that there are *far* more hazards in general for implementors than for users of runtimes, e.g. `impl Future` needs to handle calls to `Future::poll()` with different `Waker` instances, since you get a different `Waker` from different tasks, i.e. if you have multiple `async` blocks (I *think* that’s a “correct” example of that behavior). But this is, in general, an implementor hazard, since the *vast* majority of both “normal” library code and especially app code will not be `impl Future`-ing, but instead “just” writing `async` blocks and `.await`-ing various futures, and the majority of *those* will also be generated via other `async` blocks, and so on.
 - If you `.await` a *reference* rather than a *value*, the Future continues to exist after completion. If you try to `poll()` it *again* (including via `.await`, I think?), it will panic.
-    - The same thing goes for [a `Stream`](), which is an asynchronous trait *akin to* having an `async` version of `Iterator`, and has a `poll_next()` method is called by `Future::poll()` (at least in today’s world, where `Stream` is not a first-class citizen)
+    - The same thing goes for [a `Stream`](https://docs.rs/futures/latest/futures/stream/trait.Stream.html), which is an asynchronous trait *akin to* having an `async` version of `Iterator` (thus is approved to be stabilized as `AsyncIterator`, and has a `poll_next()` method is called by `Future::poll()` (at least in today’s world, where `Stream` is not a first-class citizen)
     - You can `futures::stream::StreamExt::fuse()` exactly the same way you can `Iterator::fuse()`, and you will get back `Poll::Ready(None)` in that case—forever.
     - …and it turns out there is also `futures::future::FuturesExt::fuse()`, which does the same so you can guarantee *its* semantics; in that case it (still somewhat strangely, to my mind!) goes back to returning `Poll::Pending` forever. (Why not have a `Poll::Completed`—other than maybe that at this point it is just plain too late?)
 
@@ -168,6 +177,12 @@ Tokio’s doc continues:
 > Be aware that cancelling something that is not cancellation safe is not necessarily wrong. For example, if you are cancelling a task because the application is shutting down, then you probably don’t care that partially read data is lost.
 
 This is sort of adjacent to idempotency—but not identical, because of the caveat around completion.
+
+### More to read
+
+- [ ] [Cliff Biffle’s lilos doc on the subject](https://github.com/cbiffle/lilos/blob/main/doc/cancellation.adoc)
+- [ ] His deeper dive on it: [# Mutex without lock, Queue without push: cancel safety in lilos](https://cliffle.com/blog/lilos-cancel-safety/)
+
 
 ## Misc.
 

@@ -15,7 +15,13 @@ async fn main() -> mini_redis::Result<()> {
 async fn subscribe() -> mini_redis::Result<()> {
     let client = client::connect("127.0.0.1:6379").await?;
     let subscriber = client.subscribe(vec!["numbers".to_string()]).await?;
-    let messages = subscriber.into_stream();
+    let messages = subscriber
+        .into_stream()
+        .filter_map(|msg| match msg {
+            Ok(msg) if msg.content.len() == 1 => Some(msg.content),
+            _ => None,
+        })
+        .take(3);
 
     tokio::pin!(messages);
 
@@ -35,11 +41,18 @@ async fn subscribe() -> mini_redis::Result<()> {
 async fn publish() -> mini_redis::Result<()> {
     let mut client = client::connect("127.0.0.1:6379").await?;
 
+    println!("starting publishing");
     client.publish("numbers", "1".into()).await?;
+    println!("published '1'");
     client.publish("numbers", "two".into()).await?;
+    println!("published 'two'");
     client.publish("numbers", "3".into()).await?;
+    println!("published '3'");
     client.publish("numbers", "four".into()).await?;
+    println!("published 'four'");
     client.publish("numbers", "five".into()).await?;
+    println!("published 'five'");
     client.publish("numbers", "6".into()).await?;
+    println!("published '6'");
     Ok(())
 }
