@@ -1,0 +1,1 @@
+We want to convey the *gist*, including that there is an Async 2027 group goal, a number of merged-but-unimplemented RFCs and MCPs, etc., but we should also keep it fairly minimal so we do not have to update it constantly.

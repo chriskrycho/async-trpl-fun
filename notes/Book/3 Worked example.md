@@ -1,0 +1,1 @@
+Details here TBD! Something involving some variety of sockets, maybe (web or otherwise)?
