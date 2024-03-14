@@ -13,7 +13,6 @@
   <component name="ChangeListManager">
     <list default="true" id="340fe6e8-3d0b-4a6b-995a-5554086b8b1e" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/notes/_index.md" beforeDir="false" afterPath="$PROJECT_DIR$/notes/_index.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -75,6 +74,7 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="file://$USER_HOME$/.cargo/registry/src/index.crates.io-6f17d22bba15001f/mini-redis-0.4.1/src/client.rs" root0="SKIP_INSPECTION" />
     <setting file="file://$USER_HOME$/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-stream-0.1.14/src/stream_ext/next.rs" root0="SKIP_INSPECTION" />
   </component>
   <component name="MacroExpansionManager">
@@ -98,7 +98,7 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "git-widget-placeholder": "37392463",
+    "git-widget-placeholder": "cae00847",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
@@ -126,7 +126,7 @@
       <updated>1710360807997</updated>
       <workItem from="1710360809134" duration="1236000" />
       <workItem from="1710369070071" duration="7000" />
-      <workItem from="1710369081167" duration="3139000" />
+      <workItem from="1710369081167" duration="4421000" />
     </task>
     <servers />
   </component>
