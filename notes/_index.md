@@ -1,7 +1,7 @@
 ## Notes
 
 - [[_index#Overview|Overview]]
-- [[Book notes]]
+- [[Book/Random notes]]
 - [[live reload server]]
 - [[Ecosystem/_index|Ecosystem]]:
     - [[Ecosystem/Tokio|Tokio]]
