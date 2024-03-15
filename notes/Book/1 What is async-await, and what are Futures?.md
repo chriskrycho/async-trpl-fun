@@ -3,6 +3,9 @@ Conceptual machinery!
 > [!warning] All sorts of “ordering” issues here
 > This is *not* the right order for this material, I think… but it *is* a useful starting point.
 
+> [!warning] Half outline, half content
+> I got on a bit of a roll part-way through this. The first part is bullet-point-tastic, while the the second part is first-draft-tastic instead.
+
 - **Motivation for the features.** Lots of things in software by nature take non-trivial amounts of time. Our options are, roughly:
     - Just wait for them to finish (“blocking”). This is what a synchronous program does.
     - Find some way to write code that does something only once the operation has completed, but *without* blocking. This is what an asynchronous program does.
@@ -18,7 +21,7 @@ Conceptual machinery!
             - We can pass them around as arguments and return values, just like other data structures.
             - We can write functions/methods which work with them, operating on them in ways that *resemble* callbacks, but where we can use “combinators” or “adapters” as chains of operations on them instead, which eliminates a lot of the nesting and provides a visual structure that more closely matches the behavior of the system.
                 - This should feel familiar: it is just like how we treat types like `Option` and `Result` and `Iterator`. (This starts to touch on [[Book/2 Rust Specifics|2 Rust Specifics]], but I am thinking of it here so writing it down here!)
-                - And just like those, as we use them a bunch over time, we might find that it is useful to have 
+                - And just like those, as we use them a bunch over time, we might find that it is useful to have dedicated syntax. `Result` and `Option` have `?` sugar, `Iterator` has `for` loops, and `Future` has `async` and `.await`. In each case, it is still possible to work with them directly as objects: `Option::map()`, `Iterator::fold()`, and… `FutureExt::flatten()`. (Ellipsis because oh dear: we really need to standardize a bunch of these methods.)
 
 - **Inherent complexity of the problem space.** We cannot *eliminate* the complexity of asynchronous behavior. At the end of the day, we still have to write code which has to deal with the fact that things are going to happen in an unpredictable order in time, and is robust with that. This is hard! However, we *can* tame some of it by eliminating the parts which are more about “code structure” (events, callbacks, etc.) by introducing language capabilities for expressing the asynchronous patterns more directly and “linearly”.
 
