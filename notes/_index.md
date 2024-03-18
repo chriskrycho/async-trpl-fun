@@ -10,6 +10,7 @@
     - [[Ecosystem/futures-rs|futures-rs]]
 - Other interesting crates/projects using async
     - [[lilos]]
+    - [watchexec](https://watchexec.github.io)
 
 
 ## Overview
@@ -20,22 +21,17 @@ What is the Rust equivalent to this?
 
 ```ts
 function main() {
-  hello().then(
-    (value) => {
-      console.log(value);
-    },
-    (error) => {
-      console.error(error);
-    }
-  );
+  hello().then((value) => {
+    console.log(value);
+  });
 }
 
-async function hello(): String {
+async function hello(): Promise<String> {
   return "Hello, world!";
 }
 ```
 
-The short answer is: there is nothing *exactly* equivalent to it, because there is no built-in executor. The main executor people use is Tokio, of course; there are also:
+The short answer is: there is nothing *exactly* equivalent to it, because there is no built-in executor. The main executor people use is Tokio, of course; there are also a bunch of other executors.
 
 The closest thing in Rust to the above is going to be something like this (with `futures` in `Cargo.toml`):
 
@@ -279,6 +275,10 @@ For a value captured by a closure, if it is stack-local but you try to push it i
 ### `Send` bounds (e.g. in Tokio)
 
 The same thing applies to the types of the functions in use. When you invoke `tokio::task::spawn_on`, you are bound by its constraints on the future it takes. Since Tokio’s `spawn_on` can move tasks across threads, it constrains its argument to be `Future + Send + 'static` (and the same for the future’s `Output` associated type).
+
+### New kinds of borrow errors
+
+You can end up with `E0521`in ways that are a bit subtler and less clear about how to resolve than in most mainline Rust code—but in ways that mirror what you might be used to from closures (again, a similarity!). As with closures, you may need to clone *outside* the `async { … }` to get to the end goal.
 
 ## Laziness
 
