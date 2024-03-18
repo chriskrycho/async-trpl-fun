@@ -3,6 +3,8 @@ aliases:
   - Poll
   - std::poll::Poll
 ---
+The output of `Future::poll()`. The primitive which `.await` ultimately uses.
+
 Tokio’s guide notes:
 
 > [!warning]
