@@ -7,9 +7,11 @@ edition = "2021"
 
 # Break these apart later? Maybe!
 [dependencies]
+axum = "0.7.4"
 fastwebsockets = "0.7.0"
 miette = { version = "7.1.0", features = ["fancy"] }
 thiserror = "1.0.57"
 tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5.2", features = ["fs", "full"] }
 watchexec = "3.0.1"
 watchexec-signals = "2.1.0"

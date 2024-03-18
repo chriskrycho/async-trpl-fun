@@ -1,11 +1,7 @@
-use miette::{IntoDiagnostic, Result};
+use lrrs::serve;
 
-use lrrs::live_reload;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Skip the program name.
-    let args = std::env::args().skip(1).collect::<Vec<_>>();
-    println!("Watching {:?}", &args);
-    live_reload(&args).await.into_diagnostic()
+fn main() -> Result<(), lrrs::Error> {
+    // get the path to watch (skip the program name)
+    let path = std::env::args().nth(1).unwrap();
+    serve(path)
 }
