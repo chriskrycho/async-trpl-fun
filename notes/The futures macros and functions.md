@@ -1,0 +1,5 @@
+Because they share a name, `futures::join::join()` and `futures::join!()` would initially appear to be very similar, and likewise with `futures::future::select()` and `futures::select()` (which are also surfaced in [[Ecosystem/Tokio|Tokio]])—and the same with the `try_` variants. But they are actually *quite* different, and in a way newcomers might find surprising. The functions compose `Future`s and return new `Future`s, with `join` or `select` semantics,[^js] whereas the macros actually `.await`the `Future`s internally and therefore return the *result* of the functions.
+
+(This was *exceedingly* non-obvious to me.)
+
+[^js]: Analogous to `Promise.prototype.all` and `Promise.prototype.race` respectively from JS; though in those cases `futures::future::join_all` and `futures::future::select_all` are actually the more direct comparisons, since the `Promise` methods are variadic.

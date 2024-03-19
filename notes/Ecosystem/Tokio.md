@@ -56,4 +56,13 @@ You could argue this is basically “progressive disclosure of complexity” to 
 
 - I think `select!` does too many things, and its syntax fits weirdly with the rest of the language. It is similar to, but weirdly different from, normal pattern-matching.
 - It also expands to explicitly `poll`-ing on all the futures exposed in its branches, and `.await`-ing the resulting top-level `Future`.
-- 
+
+### On signal-handling
+
+> ## Caveats
+> 
+> The first time that a `Signal` instance is registered for a particular signal kind, an OS signal-handler is installed which replaces the default platform behavior when that signal is received, **for the duration of the entire process**.
+> 
+> For example, Unix systems will terminate a process by default when it receives `SIGINT`. But, when a `Signal` instance is created to listen for this signal, the next `SIGINT` that arrives will be translated to a stream event, and the process will continue to execute. **Even if this `Signal` instance is dropped, subsequent `SIGINT` deliveries will end up captured by Tokio, and the default platform behavior will NOT be reset**.
+> 
+> Thus, applications should take care to ensure the expected signal behavior occurs as expected after listening for specific signals.
