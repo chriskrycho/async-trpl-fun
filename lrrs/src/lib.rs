@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::Path, pin::pin};
+use std::{net::SocketAddr, path::Path};
 
 use axum::Router;
 use futures::future::join;
@@ -6,7 +6,6 @@ use tokio::{net::TcpListener, runtime::Runtime, signal::ctrl_c, task::JoinError}
 use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
 use watchexec::{error::CriticalError, Watchexec};
-use watchexec_signals::Signal;
 
 pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
     let rt = Runtime::new().map_err(|e| Error::Io { source: e })?;
@@ -19,7 +18,6 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
 
         async move {
             if let Ok(()) = ctrl_c().await {
-                println!("Interrupt!");
                 token.cancel();
             }
         }
