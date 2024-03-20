@@ -1,7 +1,9 @@
-use std::{net::SocketAddr, path::Path, time::Duration};
+use std::{net::SocketAddr, path::Path, pin::pin};
 
 use axum::Router;
-use tokio::{net::TcpListener, runtime::Runtime, task::JoinError, try_join};
+use futures::future::join;
+use tokio::{net::TcpListener, runtime::Runtime, signal::ctrl_c, task::JoinError};
+use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
 use watchexec::{error::CriticalError, Watchexec};
 use watchexec_signals::Signal;
@@ -9,15 +11,45 @@ use watchexec_signals::Signal;
 pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
     let rt = Runtime::new().map_err(|e| Error::Io { source: e })?;
 
-    let watch = watcher_in(path.as_ref());
-    let serve = serve_in(path.as_ref(), &rt);
+    let token = CancellationToken::new();
 
-    let future = async { try_join!(watch, serve).map(|_| ()) };
+    rt.spawn({
+        // What we actually want is this *from the watch*, right?
+        let token = token.clone();
 
-    rt.block_on(future)
+        async move {
+            if let Ok(()) = ctrl_c().await {
+                println!("Interrupt!");
+                token.cancel();
+            }
+        }
+    });
+
+    rt.block_on(async {
+        let watch = watcher_in(path.as_ref());
+        let serve = serve_in(path.as_ref());
+
+        // `.await`s both internally.
+        let watches = join(watch, serve);
+
+        tokio::select! {
+            res = watches => match res {
+                (Ok(_), Ok(_)) => todo!(),
+                (Ok(_), Err(_)) => todo!(),
+                (Err(_), Ok(_)) => todo!(),
+                (Err(_), Err(_)) => todo!(),
+            },
+            _ = ctrl_c() => {
+                println!("canceling!");
+                token.cancel();
+            }
+        }
+    });
+
+    Ok(())
 }
 
-async fn serve_in(path: &Path, rt: &Runtime) -> Result<(), Error> {
+async fn serve_in(path: &Path) -> Result<(), Error> {
     // This could be extracted into its own function.
     let serve_dir = ServeDir::new(path).append_index_html_on_directories(true);
     let router = Router::new().route_service("/*asset", serve_dir);
@@ -38,19 +70,11 @@ async fn serve_in(path: &Path, rt: &Runtime) -> Result<(), Error> {
 }
 
 async fn watcher_in(path: &Path) -> Result<(), Error> {
-    let watcher = Watchexec::new(|mut action_handler| {
+    let watcher = Watchexec::new(|action_handler| {
         // This needs `.iter()` because `events` is an `Arc<[Event]>`, not just
         // `[Event]`, so `.iter()` delegates to the inner bit.
         for event in action_handler.events.iter() {
             eprintln!("Event: {event:#?}");
-        }
-
-        // TODO: this needs to send a “please shut it all down” signal out of the
-        // async handler. As is, this may be fine once properly composed with
-        // another handler, e.g. via `join!`.
-        if action_handler.signals().any(|sig| sig == Signal::Interrupt) {
-            eprintln!("got an interrupt!");
-            action_handler.quit_gracefully(Signal::Interrupt, Duration::from_secs(1));
         }
 
         action_handler

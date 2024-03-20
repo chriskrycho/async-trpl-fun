@@ -1049,9 +1049,11 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "fastwebsockets",
+ "futures",
  "miette 7.1.0",
  "thiserror",
  "tokio",
+ "tokio-util",
  "tower-http",
  "watchexec",
  "watchexec-signals",
