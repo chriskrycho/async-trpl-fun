@@ -1,0 +1,5 @@
+I don’t yet have a crisp articulation of this, but writing it down for the sake of not forgetting it and making sure to address it when working on an example touching it in the book:
+
+One thing that I missed when setting up the web socket handler was that if you never break the `loop` in the case where you are `select!`-ing on the web socket, you end up hosed by getting stuck in the loop when the *other side* closes the socket! On the one hand: *duh*. On the other hand: I missed it initially.
+
+That kind of thing shows up *much* less in a lot of the programming I have done, because writing infinite loops that are *supposed* to just loop forever until some condition happens is… not a thing you do *except* when setting up something like a listener, an event loop, etc. If you are not used to writing those kinds of things (and a lot of *application* code is not! Even a lot of server-side code is much more request-response, i.e. one-and-done, in nature).

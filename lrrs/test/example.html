@@ -2,7 +2,7 @@
     <head>
         <title>LRRS: Tokio testbed</title>
         <script>
-            let ws = new WebSocket("http://localhost:5777");
+            let ws = new WebSocket("http://localhost:9876/lr");
 
             ws.addEventListener("error", (event) => {});
 
@@ -16,13 +16,14 @@
             });
 
             ws.addEventListener("message", (message) => {
-                // TODO: expand this thing.
                 console.log("got message", message);
+                if (message.data === "reload") {
+                    location.reload();
+                }
             });
         </script>
     </head>
     <body>
         <div>Cool</div>
-        <!-- TODO: figure out how to put live-reload shenanigans here! -->
     </body>
 </html>

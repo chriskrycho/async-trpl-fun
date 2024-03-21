@@ -56,6 +56,7 @@ You could argue this is basically “progressive disclosure of complexity” to 
 
 - I think `select!` does too many things, and its syntax fits weirdly with the rest of the language. It is similar to, but weirdly different from, normal pattern-matching.
 - It also expands to explicitly `poll`-ing on all the futures exposed in its branches, and `.await`-ing the resulting top-level `Future`.
+- The type errors you get, and how they end up presenting in editors/IDEs are *extremely* annoying, because you end up with it applying to the whole macro invocation, which can make it very difficult to figure out where the actual source of the problem is.
 
 ### On signal-handling
 

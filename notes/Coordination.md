@@ -44,7 +44,7 @@ async fn process(mut messages: mpsc::Receiver<String>) {
             match messages.recv().await {
                 Some(msg) => println!("Got a message! {msg}"),
                 None => {
-                    // break;
+                    break; // important!
                 }
             }
         }

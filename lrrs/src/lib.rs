@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::Path, sync::Arc, time::Duration};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 
 use axum::{
     extract::{
@@ -9,12 +9,12 @@ use axum::{
     routing::get,
     Router,
 };
-use futures::{future::join, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use tokio::{
     net::TcpListener,
     runtime::Runtime,
     signal::ctrl_c,
-    sync::{mpsc, oneshot},
+    sync::{broadcast, mpsc},
     task::JoinError,
 };
 use tokio_util::sync::CancellationToken;
@@ -38,7 +38,7 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
         }
     });
 
-    let (tx, mut rx) = mpsc::channel(100);
+    let (tx, mut rx) = broadcast::channel(100);
     let (close_tx, mut close_rx) = mpsc::unbounded_channel();
     let shared = Arc::new(SharedState {
         tx,
@@ -49,17 +49,18 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
     let watch = watcher_in(path.as_ref(), shared.clone());
 
     rt.block_on(async {
+        eprintln!("starting up!");
         tokio::select! {
             // Handle the watch ending…
             res = watch => match res {
-                Ok(_) => todo!(),
-                Err(_) => todo!(),
+                Ok(()) => { eprintln!("ended watch with ok")},
+                Err(error) => { eprintln!("ended watch with error:\n{error}")},
             },
 
             // …or the server ending.
             res = serve => match res {
-                Ok(_) => todo!(),
-                Err(_) => todo!(),
+                Ok(()) => { eprintln!("ended serve with ok")},
+                Err(error) => { eprintln!("ended serve with error:\n{error}")},
             },
 
             // Allow any part of the program to close via signal…
@@ -77,10 +78,19 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
             _ = async {
                 loop {
                     match rx.recv().await {
-                        Some(Msg::Receive { content }) => println!("{content}"),
-                        Some(Msg::Reload) => println!("reload!"),
-                        Some(Msg::Close { reason }) => println!("close: {reason}", reason=reason.unwrap_or("unknown".into())),
-                        None => break,
+                        Ok(Msg::Receive { content }) => println!("{content}"),
+                        Ok(Msg::Reload) => println!("reload!"),
+                        Ok(Msg::Close { reason }) => {
+                            println!("close: {}", reason.unwrap_or("unknown".into()));
+                        },
+                        Ok(Msg::Error { reason }) => {
+                            eprintln!("uh oh: {reason}");
+                            break
+                        }
+                        Err(e) => {
+                            eprintln!("uh oh: {e}");
+                            break
+                        },
                     }
                 }
 
@@ -118,45 +128,88 @@ async fn serve_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
 
 #[derive(Debug)]
 struct SharedState {
-    tx: mpsc::Sender<Msg>,
+    tx: broadcast::Sender<Msg>,
     close: mpsc::UnboundedSender<()>,
 }
 
 async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Arc<SharedState>>) -> Response {
+    eprintln!("upgrading the websocket");
     ws.on_upgrade(|socket| websocket(socket, state))
 }
 
 async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
     let (mut sender, mut receiver) = stream.split();
+    let mut rx = state.tx.subscribe();
 
-    while let Some(Ok(message)) = receiver.next().await {
-        match message {
-            Message::Text(content) => {
-                println!("Got a message!: '{content}'");
-                state.tx.send(Msg::Receive { content }).await.unwrap(); // TODO: return an error!
-            }
-
-            Message::Binary(_) => {
-                // Ignore the result. TODO: do something better.
-                let _ = sender
-                    .send(Message::Text(String::from("Binary data is not supported")))
-                    .await;
-            }
-
-            Message::Ping(_) | Message::Pong(_) => { /* ignore apurpose */ }
-
-            Message::Close(frame) => {
-                // Probably *don’t* actually want to shut everything down in
-                // this case, but it is a useful *starting* point for getting
-                // the coordination wired up.
-                let message = Msg::Close {
-                    reason: frame
-                        .map(|frame| format!("Reason: {}\nCode: {}\n", frame.reason, frame.code)),
+    loop {
+        let (ws_reply, msg) = tokio::select! {
+            message = receiver.next() => {
+                let Some(message) = message else {
+                    break;
                 };
 
-                // Ignore the result. TODO: do something better. (Result!)
-                let _ = state.tx.send(message);
+                eprintln!("got {message:?} from websocket");
+
+                match message {
+                    Ok(Message::Text(content)) => {
+                        println!("Got a message!: '{content}'");
+                        (None, Some(Msg::Receive { content }))
+                    }
+
+                    Ok(Message::Binary(_)) => {
+                        (Some(Message::Text(String::from("Binary data is not supported"))), None)
+                    }
+
+                    Ok(Message::Ping(_) | Message::Pong(_)) => (None, None),
+
+                    Ok(Message::Close(maybe_frame)) => {
+                        let message = Msg::Close {
+                            reason: maybe_frame.map(|frame| {
+                                let desc = if !frame.reason.is_empty() {
+                                    format!("Reason: {};", frame.reason)
+                                } else {
+                                    String::from("")
+                                };
+
+                                let code = format!("Code: {}", frame.code);
+                                desc + &code
+                            }),
+                        };
+
+                        (None, Some(message))
+                    }
+
+                    Err(reason) => {
+                        let message = Msg::Error {
+                            reason: reason.to_string()
+                        };
+
+                        (None, Some(message))
+                    }
+                }
+            },
+            msg = rx.recv() => match msg {
+                Ok(Msg::Reload) => {
+                    (Some(Message::Text(String::from("reload"))), None)
+                },
+
+                Ok(_) => (None, None),
+
+                /* TODO: error handling! */
+                Err(_) => (None, None),
             }
+        };
+
+        if let Some(reply) = ws_reply {
+            eprint!("sending ws message…");
+            sender.send(reply).await.unwrap(); // TODO: error handling!
+            eprintln!(" done.");
+        }
+
+        if let Some(internal) = msg {
+            eprint!("sending internal message…");
+            state.tx.send(internal).unwrap(); // TODO: error handling!
+            eprintln!(" done.");
         }
     }
 }
@@ -166,6 +219,7 @@ enum Msg {
     Receive { content: String },
     Reload,
     Close { reason: Option<String> },
+    Error { reason: String },
 }
 
 async fn watcher_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
@@ -195,7 +249,7 @@ async fn watcher_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
         let future = async move {
             let should_reload = handler.events.iter().any(|event| event.paths().count() > 0);
             if should_reload {
-                future_state.tx.send(Msg::Reload).await.unwrap();
+                future_state.tx.send(Msg::Reload).unwrap();
             }
 
             handler
