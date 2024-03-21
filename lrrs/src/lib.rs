@@ -17,26 +17,12 @@ use tokio::{
     sync::{broadcast, mpsc},
     task::JoinError,
 };
-use tokio_util::sync::CancellationToken;
 use tower_http::services::ServeDir;
 use watchexec::{error::CriticalError, Watchexec};
 use watchexec_signals::Signal;
 
 pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
     let rt = Runtime::new().map_err(|e| Error::Io { source: e })?;
-
-    let token = CancellationToken::new();
-
-    rt.spawn({
-        // What we actually want is this *from the watch*, right?
-        let token = token.clone();
-
-        async move {
-            if let Ok(()) = ctrl_c().await {
-                token.cancel();
-            }
-        }
-    });
 
     let (tx, mut rx) = broadcast::channel(100);
     let (close_tx, mut close_rx) = mpsc::unbounded_channel();
@@ -71,7 +57,6 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
             // …including Tokio’s top-level handling.
             _ = ctrl_c() => {
                 println!("canceling via tokio::signal::ctrl_c !");
-                token.cancel();
             },
 
             // And now for the actual good part: handling the message loop!
