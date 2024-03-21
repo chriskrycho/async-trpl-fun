@@ -1,8 +1,8 @@
-use std::{net::SocketAddr, path::Path, sync::Arc};
+use std::{borrow::BorrowMut, fs::File, net::SocketAddr, path::Path, sync::Arc};
 
 use axum::{
     extract::{
-        ws::{Message, WebSocket},
+        ws::{Message as WsMessage, WebSocket},
         State, WebSocketUpgrade,
     },
     response::Response,
@@ -25,10 +25,12 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
     let rt = Runtime::new().map_err(|e| Error::Io { source: e })?;
 
     let (tx, mut rx) = broadcast::channel(100);
+    let (change_tx, _) = broadcast::channel(10);
     let (close_tx, mut close_rx) = mpsc::unbounded_channel();
     let shared = Arc::new(SharedState {
         tx,
         close: close_tx,
+        change: change_tx,
     });
 
     let serve = serve_in(path.as_ref(), shared.clone());
@@ -64,7 +66,6 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
                 loop {
                     match rx.recv().await {
                         Ok(Msg::Receive { content }) => println!("{content}"),
-                        Ok(Msg::Reload) => println!("reload!"),
                         Ok(Msg::Close { reason }) => {
                             println!("close: {}", reason.unwrap_or("unknown".into()));
                         },
@@ -113,6 +114,7 @@ async fn serve_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
 
 #[derive(Debug)]
 struct SharedState {
+    change: broadcast::Sender<FileChanged>,
     tx: broadcast::Sender<Msg>,
     close: mpsc::UnboundedSender<()>,
 }
@@ -124,7 +126,7 @@ async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Arc<SharedState>>)
 
 async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
     let (mut sender, mut receiver) = stream.split();
-    let mut rx = state.tx.subscribe();
+    let mut change = state.change.subscribe();
 
     loop {
         let (ws_reply, msg) = tokio::select! {
@@ -136,18 +138,18 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
                 eprintln!("got {message:?} from websocket");
 
                 match message {
-                    Ok(Message::Text(content)) => {
+                    Ok(WsMessage::Text(content)) => {
                         println!("Got a message!: '{content}'");
                         (None, Some(Msg::Receive { content }))
                     }
 
-                    Ok(Message::Binary(_)) => {
-                        (Some(Message::Text(String::from("Binary data is not supported"))), None)
+                    Ok(WsMessage::Binary(_)) => {
+                        (Some(WsMessage::Text(String::from("Binary data is not supported"))), None)
                     }
 
-                    Ok(Message::Ping(_) | Message::Pong(_)) => (None, None),
+                    Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => (None, None),
 
-                    Ok(Message::Close(maybe_frame)) => {
+                    Ok(WsMessage::Close(maybe_frame)) => {
                         let message = Msg::Close {
                             reason: maybe_frame.map(|frame| {
                                 let desc = if !frame.reason.is_empty() {
@@ -173,16 +175,11 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
                     }
                 }
             },
-            msg = rx.recv() => match msg {
-                Ok(Msg::Reload) => {
-                    (Some(Message::Text(String::from("reload"))), None)
-                },
 
-                Ok(_) => (None, None),
-
-                /* TODO: error handling! */
-                Err(_) => (None, None),
-            }
+            m = change.recv() => match m {
+                Ok(_file_changed) => (Some(WsMessage::Text(String::from("reload"))), None),
+                Err(_recv_err) => (None, None), // TODO: error handling!
+            },
         };
 
         if let Some(reply) = ws_reply {
@@ -199,10 +196,13 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
     }
 }
 
+// Could later wrap type of change.
+#[derive(Debug, Clone)]
+struct FileChanged;
+
 #[derive(Debug, Clone)]
 enum Msg {
     Receive { content: String },
-    Reload,
     Close { reason: Option<String> },
     Error { reason: String },
 }
@@ -234,7 +234,7 @@ async fn watcher_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
         let future = async move {
             let should_reload = handler.events.iter().any(|event| event.paths().count() > 0);
             if should_reload {
-                future_state.tx.send(Msg::Reload).unwrap();
+                future_state.change.send(FileChanged).unwrap();
             }
 
             handler
