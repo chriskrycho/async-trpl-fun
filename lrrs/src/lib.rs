@@ -93,7 +93,7 @@ async fn serve_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
     let serve_dir = ServeDir::new(path).append_index_html_on_directories(true);
 
     let router = Router::new()
-        .route_service("/*asset", serve_dir)
+        .nest_service("/", serve_dir)
         .route("/lr", get(ws_upgrade))
         .with_state(state);
 
