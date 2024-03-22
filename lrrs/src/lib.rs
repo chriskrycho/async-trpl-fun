@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, fs::File, net::SocketAddr, path::Path, sync::Arc};
+use std::{net::SocketAddr, path::Path, sync::Arc};
 
 use axum::{
     extract::{
@@ -130,50 +130,9 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
 
     loop {
         let (ws_reply, msg) = tokio::select! {
-            message = receiver.next() => {
-                let Some(message) = message else {
-                    break;
-                };
-
-                eprintln!("got {message:?} from websocket");
-
-                match message {
-                    Ok(WsMessage::Text(content)) => {
-                        println!("Got a message!: '{content}'");
-                        (None, Some(Msg::Receive { content }))
-                    }
-
-                    Ok(WsMessage::Binary(_)) => {
-                        (Some(WsMessage::Text(String::from("Binary data is not supported"))), None)
-                    }
-
-                    Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => (None, None),
-
-                    Ok(WsMessage::Close(maybe_frame)) => {
-                        let message = Msg::Close {
-                            reason: maybe_frame.map(|frame| {
-                                let desc = if !frame.reason.is_empty() {
-                                    format!("Reason: {};", frame.reason)
-                                } else {
-                                    String::from("")
-                                };
-
-                                let code = format!("Code: {}", frame.code);
-                                desc + &code
-                            }),
-                        };
-
-                        (None, Some(message))
-                    }
-
-                    Err(reason) => {
-                        let message = Msg::Error {
-                            reason: reason.to_string()
-                        };
-
-                        (None, Some(message))
-                    }
-                }
+            message = receiver.next() => match message {
+                Some(message) => ws_message(message),
+                None => break,
             },
 
             m = change.recv() => match m {
@@ -192,6 +151,54 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
             eprint!("sending internal message…");
             state.tx.send(internal).unwrap(); // TODO: error handling!
             eprintln!(" done.");
+        }
+    }
+}
+
+// TODO: refactor and rename! `Message` and `Msg`?!?
+type Handled = (Option<WsMessage>, Option<Msg>);
+
+fn ws_message(message: Result<WsMessage, axum::Error>) -> Handled {
+    eprintln!("got {message:?} from websocket");
+
+    match message {
+        Ok(WsMessage::Text(content)) => {
+            println!("Got a message!: '{content}'");
+            (None, Some(Msg::Receive { content }))
+        }
+
+        Ok(WsMessage::Binary(_)) => (
+            Some(WsMessage::Text(String::from(
+                "Binary data is not supported",
+            ))),
+            None,
+        ),
+
+        Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => (None, None),
+
+        Ok(WsMessage::Close(maybe_frame)) => {
+            let message = Msg::Close {
+                reason: maybe_frame.map(|frame| {
+                    let desc = if !frame.reason.is_empty() {
+                        format!("Reason: {};", frame.reason)
+                    } else {
+                        String::from("")
+                    };
+
+                    let code = format!("Code: {}", frame.code);
+                    desc + &code
+                }),
+            };
+
+            (None, Some(message))
+        }
+
+        Err(reason) => {
+            let message = Msg::Error {
+                reason: reason.to_string(),
+            };
+
+            (None, Some(message))
         }
     }
 }
