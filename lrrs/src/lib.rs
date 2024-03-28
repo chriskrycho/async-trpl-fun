@@ -74,7 +74,7 @@ pub fn serve(path: impl AsRef<Path>) -> Result<(), Error> {
                             break
                         }
                         Err(e) => {
-                            eprintln!("uh oh: {e}");
+                            eprintln!("bad times: {e}");
                             break
                         },
                     }
@@ -239,9 +239,15 @@ async fn watcher_in(path: &Path, state: Arc<SharedState>) -> Result<(), Error> {
         // That reference needs to be owned by the future, so use `async move`
         // to move ownership.
         let future = async move {
+            // Only send a notice when there is a relevant change *and* when
+            // something is listening for it.
             let should_reload = handler.events.iter().any(|event| event.paths().count() > 0);
-            if should_reload {
-                future_state.change.send(FileChanged).unwrap();
+            let has_listeners = future_state.change.receiver_count() > 0;
+            if should_reload && has_listeners {
+                future_state
+                    .change
+                    .send(FileChanged)
+                    .expect("The `Sender` must always have at least one `Receiver`");
             }
 
             handler
