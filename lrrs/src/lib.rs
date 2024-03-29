@@ -129,52 +129,54 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
     let mut change = state.change.subscribe();
 
     loop {
-        let (ws_reply, msg) = tokio::select! {
+        let next = tokio::select! {
             message = receiver.next() => match message {
                 Some(message) => ws_message(message),
                 None => break,
             },
 
             m = change.recv() => match m {
-                Ok(_file_changed) => (Some(WsMessage::Text(String::from("reload"))), None),
-                Err(_recv_err) => (None, None), // TODO: error handling!
+                Ok(_file_changed) => Next::Ws(WsMessage::Text(String::from("reload"))),
+                Err(_recv_err) => Next::None, // TODO: error handling!
             },
         };
 
-        if let Some(reply) = ws_reply {
-            eprint!("sending ws message…");
-            sender.send(reply).await.unwrap(); // TODO: error handling!
-            eprintln!(" done.");
-        }
-
-        if let Some(internal) = msg {
-            eprint!("sending internal message…");
-            state.tx.send(internal).unwrap(); // TODO: error handling!
-            eprintln!(" done.");
+        match next {
+            Next::Internal(internal) => {
+                eprint!("sending internal message…");
+                state.tx.send(internal).unwrap(); // TODO: error handling!
+                eprintln!(" done.");
+            }
+            Next::Ws(reply) => {
+                eprint!("sending ws message…");
+                sender.send(reply).await.unwrap(); // TODO: error handling!
+                eprintln!(" done.");
+            }
+            Next::None => { /* Nothing to do! */ }
         }
     }
 }
 
-// TODO: refactor and rename! `Message` and `Msg`?!?
-type Handled = (Option<WsMessage>, Option<Msg>);
+enum Next {
+    None,
+    Internal(Msg),
+    Ws(WsMessage),
+}
 
-fn ws_message(message: Result<WsMessage, axum::Error>) -> Handled {
+fn ws_message(message: Result<WsMessage, axum::Error>) -> Next {
     eprintln!("got {message:?} from websocket");
 
     match message {
         Ok(WsMessage::Text(content)) => {
             println!("Got a message!: '{content}'");
-            (None, Some(Msg::Receive { content }))
+            Next::Internal(Msg::Receive { content })
         }
 
-        Ok(WsMessage::Binary(_)) => (
-            Some(WsMessage::Text(String::from(
-                "Binary data is not supported",
-            ))),
-            None,
-        ),
+        Ok(WsMessage::Binary(_)) => Next::Ws(WsMessage::Text(String::from(
+            "Binary data is not supported",
+        ))),
 
-        Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => (None, None),
+        Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => Next::None,
 
         Ok(WsMessage::Close(maybe_frame)) => {
             let message = Msg::Close {
@@ -190,7 +192,7 @@ fn ws_message(message: Result<WsMessage, axum::Error>) -> Handled {
                 }),
             };
 
-            (None, Some(message))
+            Next::Internal(message)
         }
 
         Err(reason) => {
@@ -198,7 +200,7 @@ fn ws_message(message: Result<WsMessage, axum::Error>) -> Handled {
                 reason: reason.to_string(),
             };
 
-            (None, Some(message))
+            Next::Internal(message)
         }
     }
 }
