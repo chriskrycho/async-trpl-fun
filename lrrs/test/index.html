@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <title>LRRS: Tokio testbed</title>
+    <script>
+      let ws = new WebSocket("http://localhost:9876/lr");
+
+      ws.addEventListener("error", (event) => {
+        console.error("error:", event);
+      });
+
+      ws.addEventListener("close", (closeEvent) => {
+        let message = `closed because ${closeEvent.reason}`;
+        if (closeEvent.wasClean) {
+          console.log(message);
+        } else {
+          console.error(message, closeEvent.code);
+        }
+      });
+
+      ws.addEventListener("message", (message) => {
+        console.log("got message", message);
+        if (message.data === "reload") {
+          location.reload();
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div>Cool</div>
+  </body>
+</html>
