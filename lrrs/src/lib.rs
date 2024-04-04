@@ -24,46 +24,20 @@ use watchexec_signals::Signal;
 pub fn serve(path: PathBuf) -> Result<(), Error> {
     let rt = Runtime::new().map_err(|e| Error::Io { source: e })?;
 
-    let (msg_tx, mut msg_rx) = broadcast::channel(100);
-    let (change_tx, _) = broadcast::channel(10);
+    let (tx, _) = broadcast::channel(10);
 
-    let shared = Arc::new(SharedState {
-        msg: msg_tx,
-        change: change_tx,
-    });
+    let shared = Arc::new(tx);
 
     let serve = rt.spawn(server_in(path.to_owned(), shared.clone()));
     let watch = rt.spawn(watcher_in(path.to_owned(), shared.clone()));
+    let close = rt.spawn(async move { ctrl_c().await.map_err(|v| Error::Io { source: v }) });
 
-    let close_signal = rt.spawn(async move { ctrl_c().await.map_err(|v| Error::Io { source: v }) });
-
-    let coordinate = rt.spawn(async move {
-        // The goal here is to make progress *unless*
-        loop {
-            eprintln!("starting up the loop");
-
-            match msg_rx.recv().await {
-                Ok(Msg::Close { reason }) => {
-                    println!("closed ws: {}", reason.unwrap_or("unknown".into()));
-                }
-                Ok(Msg::Error { reason }) => {
-                    eprintln!("uh oh: {reason}");
-                    return Err(Error::Handled(reason));
-                }
-                Err(e) => {
-                    return Err(Error::Receive { source: e });
-                }
-            }
-        }
-    });
-
-    rt.block_on(select_ok([serve, watch, coordinate, close_signal]))
+    rt.block_on(select_ok([serve, watch, close]))
         .map_err(|join_err| Error::TopLevel { source: join_err })
         .and_then(|(result, _rest)| result)
 }
 
-async fn server_in(path: PathBuf, state: Arc<SharedState>) -> Result<(), Error> {
-    // This could be extracted into its own function.
+async fn server_in(path: PathBuf, state: Shared) -> Result<(), Error> {
     let serve_dir = ServeDir::new(path).append_index_html_on_directories(true);
 
     let router = Router::new()
@@ -86,38 +60,54 @@ async fn server_in(path: PathBuf, state: Arc<SharedState>) -> Result<(), Error> 
         .map_err(|e| Error::ServeStart { source: e })
 }
 
-#[derive(Debug)]
-struct SharedState {
-    change: broadcast::Sender<FileChanged>,
-    msg: broadcast::Sender<Msg>,
-}
+type Shared = Arc<broadcast::Sender<FileChanged>>;
 
-async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Arc<SharedState>>) -> Response {
+async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Shared>) -> Response {
     eprintln!("upgrading the websocket");
     ws.on_upgrade(|socket| websocket(socket, state))
 }
 
-async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
+async fn websocket(stream: WebSocket, state: Shared) {
     let (mut ws_sender, mut receiver) = stream.split();
-    let mut change = state.change.subscribe();
+    let mut change = state.subscribe();
+
+    let mut listening = true;
 
     loop {
-        // For now, ignore error case
-        if (change.recv().await).is_ok() {
-            eprint!("sending ws message…");
-            ws_sender
-                .send(WsMessage::Text(String::from("reload")))
-                .await
-                .unwrap(); // TODO: error handling!
+        match change.recv().await {
+            Ok(FileChanged) => {
+                if listening {
+                    eprint!("sending WebSocket reload message…");
+                    ws_sender
+                        .send(WsMessage::Text(String::from("reload")))
+                        .await
+                        .unwrap(); // TODO: error handling!
 
-            eprintln!(" done.");
+                    eprintln!(" done.");
+                }
+            }
+            Err(recv_error) => match recv_error {
+                RecvError::Closed => todo!(),
+                RecvError::Lagged(dropped_count) => {
+                    eprintln!("Dropped {dropped_count} messages from internal queue");
+                }
+            },
         }
 
-        if let Some(message) = receiver.next().await {
-            if let Some(msg) = ws_message(message) {
-                eprint!("sending internal message…");
-                state.msg.send(msg).unwrap(); // TODO: error handling!
-                eprintln!(" done.");
+        if let Some(websocket_message) = receiver.next().await {
+            match handle(websocket_message) {
+                Ok(Some(WebSocketClosed { reason })) => {
+                    eprintln!(
+                        "WebSocket instance closed: {}",
+                        reason.unwrap_or(String::from("(reason unknown)"))
+                    );
+                    listening = false;
+                }
+                Ok(None) => (/* no-op */),
+                Err(reason) => {
+                    eprintln!("WebSocket error: {reason}");
+                    listening = false;
+                }
             }
         } else {
             break;
@@ -125,7 +115,7 @@ async fn websocket(stream: WebSocket, state: Arc<SharedState>) {
     }
 }
 
-fn ws_message(message: Result<WsMessage, axum::Error>) -> Option<Msg> {
+fn handle(message: Result<WsMessage, axum::Error>) -> Result<Option<WebSocketClosed>, Error> {
     eprintln!("got {message:?} from websocket");
 
     use WsMessage::*;
@@ -133,12 +123,12 @@ fn ws_message(message: Result<WsMessage, axum::Error>) -> Option<Msg> {
         Ok(message) => match message {
             // We don't care about *receiving* messages from the websocket, only
             // sending them *to* it.
-            Text(_) | Binary(_) | Ping(_) | Pong(_) => None,
+            Text(_) | Binary(_) | Ping(_) | Pong(_) => Ok(None),
 
             // We *do* care if the socket closes. (Maybe? Only for logging, at
             // the moment.)
             Close(maybe_frame) => {
-                let message = Msg::Close {
+                let message = WebSocketClosed {
                     reason: maybe_frame.map(|frame| {
                         let desc = if !frame.reason.is_empty() {
                             format!("Reason: {};", frame.reason)
@@ -151,17 +141,11 @@ fn ws_message(message: Result<WsMessage, axum::Error>) -> Option<Msg> {
                     }),
                 };
 
-                Some(message)
+                Ok(Some(message))
             }
         },
 
-        Err(reason) => {
-            let message = Msg::Error {
-                reason: reason.to_string(),
-            };
-
-            Some(message)
-        }
+        Err(reason) => Err(Error::Serve { source: reason }),
     }
 }
 
@@ -170,21 +154,15 @@ fn ws_message(message: Result<WsMessage, axum::Error>) -> Option<Msg> {
 struct FileChanged;
 
 #[derive(Debug, Clone)]
-enum Msg {
-    Close { reason: Option<String> },
-    Error { reason: String },
+struct WebSocketClosed {
+    reason: Option<String>,
 }
 
-async fn watcher_in(path: PathBuf, state: Arc<SharedState>) -> Result<(), Error> {
-    let close_state = state.clone();
+async fn watcher_in(path: PathBuf, state: Shared) -> Result<(), Error> {
     let watcher = Watchexec::new(move |mut handler| {
         if handler.signals().any(|signal| signal == Signal::Interrupt) {
-            if let Err(reason) = close_state.msg.send(Msg::Close {
-                reason: Some(String::from("Interrupt!")),
-            }) {
-                eprintln!("Could not close channel gracefully; hard closing it.\n{reason}");
-                handler.quit();
-            }
+            eprintln!("Attempting to quit watch handler");
+            handler.quit();
         }
 
         handler
@@ -205,10 +183,9 @@ async fn watcher_in(path: PathBuf, state: Arc<SharedState>) -> Result<(), Error>
             // Only send a notice when there is a relevant change *and* when
             // something is listening for it.
             let should_reload = handler.events.iter().any(|event| event.paths().count() > 0);
-            let has_listeners = future_state.change.receiver_count() > 0;
+            let has_listeners = future_state.receiver_count() > 0;
             if should_reload && has_listeners {
                 future_state
-                    .change
                     .send(FileChanged)
                     .expect("The `Sender` must always have at least one `Receiver`");
             }
@@ -249,11 +226,8 @@ pub enum Error {
     #[error("Could not start the site server: {source}")]
     ServeStart { source: std::io::Error },
 
-    #[error("Runtime error: {source}")]
-    Tokio {
-        #[from]
-        source: JoinError,
-    },
+    #[error("{source}")]
+    Serve { source: axum::Error },
 
     #[error("Watch error: {source}")]
     WatchEnd { source: JoinError },
