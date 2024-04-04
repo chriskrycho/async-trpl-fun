@@ -116,12 +116,12 @@ async fn websocket(stream: WebSocket, state: Shared) {
 }
 
 fn handle(message: Result<WsMessage, axum::Error>) -> Result<Option<WebSocketClosed>, Error> {
-    eprintln!("got {message:?} from websocket");
+    eprintln!("got {message:?} from WebSocket");
 
     use WsMessage::*;
     match message {
         Ok(message) => match message {
-            // We don't care about *receiving* messages from the websocket, only
+            // We don't care about *receiving* messages from the WebSocket, only
             // sending messages *to* it.
             Text(_) | Binary(_) | Ping(_) | Pong(_) => Ok(None),
 
