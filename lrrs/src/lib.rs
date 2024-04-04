@@ -206,7 +206,6 @@ async fn watcher_in(path: PathBuf, state: Shared) -> Result<(), Error> {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Error serving site")]
 pub enum Error {
     #[error("I/O error: {source}")]
     Io { source: std::io::Error },
@@ -232,12 +231,6 @@ pub enum Error {
     #[error("Watch error: {source}")]
     WatchEnd { source: JoinError },
 
-    #[error("Receiving internal message: {source}")]
-    Receive { source: RecvError },
-
-    #[error("Top-level error: {source}")]
+    #[error(transparent)]
     TopLevel { source: JoinError },
-
-    #[error("{0}")]
-    Handled(String),
 }
