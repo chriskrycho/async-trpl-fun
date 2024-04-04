@@ -122,11 +122,10 @@ fn handle(message: Result<WsMessage, axum::Error>) -> Result<Option<WebSocketClo
     match message {
         Ok(message) => match message {
             // We don't care about *receiving* messages from the websocket, only
-            // sending them *to* it.
+            // sending messages *to* it.
             Text(_) | Binary(_) | Ping(_) | Pong(_) => Ok(None),
 
-            // We *do* care if the socket closes. (Maybe? Only for logging, at
-            // the moment.)
+            // We *do* care if the socket closes.
             Close(maybe_frame) => {
                 let message = WebSocketClosed {
                     reason: maybe_frame.map(|frame| {
