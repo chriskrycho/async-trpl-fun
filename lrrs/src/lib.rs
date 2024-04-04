@@ -2,7 +2,7 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::{
     extract::{
-        ws::{Message as WsMessage, WebSocket},
+        ws::{Message, WebSocket},
         State, WebSocketUpgrade,
     },
     response::Response,
@@ -79,7 +79,7 @@ async fn websocket(stream: WebSocket, state: Shared) {
                 if listening {
                     eprint!("sending WebSocket reload message…");
                     ws_sender
-                        .send(WsMessage::Text(String::from("reload")))
+                        .send(Message::Text(String::from("reload")))
                         .await
                         .unwrap(); // TODO: error handling!
 
@@ -115,10 +115,10 @@ async fn websocket(stream: WebSocket, state: Shared) {
     }
 }
 
-fn handle(message: Result<WsMessage, axum::Error>) -> Result<Option<WebSocketClosed>, Error> {
+fn handle(message: Result<Message, axum::Error>) -> Result<Option<WebSocketClosed>, Error> {
     eprintln!("got {message:?} from WebSocket");
 
-    use WsMessage::*;
+    use Message::*;
     match message {
         Ok(message) => match message {
             // We don't care about *receiving* messages from the WebSocket, only
