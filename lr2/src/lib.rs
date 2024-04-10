@@ -7,25 +7,11 @@ pub async fn watch(dir: &Path) -> Result<(), Error> {
     let (events_tx, mut events_rx) = mpsc::channel(1024);
     let (errors_tx, mut errors_rx) = mpsc::channel(1024);
 
-    // The lack of a return value  here is, I think, indicative: what does this,
-    // you know, *do* right now? It needs to loop somehow, I think, so that it
-    // *keeps* watching, rather than watching just until the end of this
-    // function body and then implicitly getting dropped?
+    // This needs to be here simply so that the watcher continues to exist until
+    // the rest of the operations stop yielding values.
+    let _watcher = watch_notify(dir, events_tx.clone(), errors_tx.clone())?;
 
     let mut set = JoinSet::new();
-
-    let dir = dir.to_owned();
-    set.spawn(async move {
-        loop {
-            // TODO: This blocks!
-            if let Err(e) = watch_notify(&dir, events_tx.clone(), errors_tx.clone()) {
-                if let Err(e) = errors_tx.try_send(e) {
-                    eprintln!("Can't send errors 😭 {e}");
-                }
-            }
-        }
-    });
-
     set.spawn(async move {
         while let Some(evt) = events_rx.recv().await {
             println!("Got event! {:?}", evt.kind);
@@ -52,7 +38,7 @@ fn watch_notify(
     dir: &Path,
     events: mpsc::Sender<Event>,
     errors: mpsc::Sender<Error>,
-) -> Result<(), Error> {
+) -> Result<RecommendedWatcher, Error> {
     let mut watcher = RecommendedWatcher::new(
         move |watch_result| match watch_result {
             Ok(event) => {
@@ -72,7 +58,9 @@ fn watch_notify(
 
     watcher
         .watch(dir, RecursiveMode::Recursive)
-        .map_err(Error::from)
+        .map_err(Error::from)?;
+
+    Ok(watcher)
 }
 
 #[derive(thiserror::Error, Debug)]
