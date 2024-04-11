@@ -1,48 +1,38 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
-use notify_debouncer_full::{
-    new_debouncer,
-    notify::{RecursiveMode, Watcher},
-    DebouncedEvent,
-};
+use notify::{recommended_watcher, RecursiveMode, Watcher};
 use tokio::{
     sync::mpsc::{self, Sender},
     task,
 };
 
-pub async fn watch(
-    dir: PathBuf,
-    event_channel: Sender<Change>,
-    timeout: Duration,
-) -> Result<(), Error> {
+pub async fn watch(dir: PathBuf, event_channel: Sender<Change>) -> Result<(), Error> {
     let (tx, mut rx) = mpsc::channel(256);
 
     // Doing this here means we will not drop the watcher until this function
     // ends, and the `while let` below will continue until there is an error (or
     // something else shuts down the whole system here!).
-    let mut debounced = new_debouncer(timeout, None, move |result| {
+    let mut watcher = recommended_watcher(move |result| {
         if let Err(e) = tx.blocking_send(result) {
             eprintln!("Could not send event.\nError:{e}");
         }
     })
     .map_err(Error::from)?;
 
-    debounced
-        .watcher()
+    watcher
         .watch(&dir, RecursiveMode::Recursive)
         .map_err(Error::from)?;
 
     while let Some(result) = rx.recv().await {
         match result {
-            Ok(debounced_events) => {
-                for DebouncedEvent { event, .. } in debounced_events {
-                    let change = Change { paths: event.paths };
-                    if let Err(e) = event_channel.send(change).await {
-                        eprintln!("Error sending out: {e:?}");
-                    }
+            Ok(event) => {
+                eprintln!("Got an event:\n\t{:?}\n\t{:?}", event.kind, event.source());
+                let change = Change { paths: event.paths };
+                if let Err(e) = event_channel.send(change).await {
+                    eprintln!("Error sending out: {e:?}");
                 }
             }
-            Err(reasons) => return Err(Error::from(reasons)),
+            Err(reason) => return Err(Error::from(reason)),
         }
     }
 
