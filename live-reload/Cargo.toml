@@ -1,0 +1,13 @@
+[package]
+name = "live-reload"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+axum = { version = "0.7.5", features = ["ws"] }
+futures = { version = "0.3.30", default-features = false, features = ["alloc", "std", "async-await"] }
+notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
+tokio = { version = "1.37.0", features = ["full"] }
+tower-http = { version = "0.5.2", features = ["full", "fs"] }
