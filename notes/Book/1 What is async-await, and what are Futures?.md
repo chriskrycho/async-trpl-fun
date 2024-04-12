@@ -6,6 +6,9 @@ Conceptual machinery!
 > [!warning] Half outline, half content
 > I got on a bit of a roll part-way through this. The first part is bullet-point-tastic, while the the second part is first-draft-tastic instead.
 
+> [!info] On motivation/transition
+> A lot of this motivation material can, I think, be expanded and work pretty directly as a segue from ch. 16. In particular, it should be easy to motivate things around callback-structured code since we have already seen a lot of `thread::spawn(|| ...)`.
+
 - **Motivation for the features.** Lots of things in software by nature take non-trivial amounts of time. Our options are, roughly:
     - Just wait for them to finish (“blocking”). This is what a synchronous program does.
     - Find some way to write code that does something only once the operation has completed, but *without* blocking. This is what an asynchronous program does.
