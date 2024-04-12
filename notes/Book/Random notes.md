@@ -9,6 +9,7 @@ The chapter needs to tackle two big things:
 
 ## Misc. observations
 
+- We don’t have an introduction to *what concurrent programming **is*** in the book. It currently just kind of assumes it. Fair enough, but I think we probably *do* need one to make the async stuff make sense.
 - The [_Asynchronous Programming in Rust_ book](https://rust-lang.github.io/async-book/) exists! We can lean on that for “here are additional materials to go get a deeper dive.” It is incomplete, but it includes a chapter on building a small executor.
 - Two broad approaches: top down (“build something with Tokio/Smol/whatever”) and bottom up (“here are the core types and how they work together”). Can we synthesize the two, bouncing back and forth?
 - Length:
