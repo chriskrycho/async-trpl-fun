@@ -64,3 +64,37 @@ The [[Ecosystem/Tokio|Tokio]] tutorial, building a mini version of Redis, is (a)
 - [ ] Figure out how long the Tokio mini-Redis example is in total
 
 Unlike the Tokio tutorial, we should absolutely *not* just resort to skipping/hand-waving it. We need to build whatever we build end to end. The min-redis thing handwaves *most* of it. Of course, how much is “end to end” here? We’re not reimplementing parts of the standard library in general. But more than the level of “[`write_decimal`](https://github.com/tokio-rs/mini-redis/blob/tutorial/src/connection.rs#L225-L238) is implemented by mini-redis” that the Tokio tutorial does a lot of. (It’s *fine* that that’s what Tokio’s tutorial does, just not appropriate for the book.)
+
+## Easy failure modes
+
+The things you might be tempted to write often *just do not work the way you expect*. There is a real learning curve here. Example from when I was learning this myself:
+
+```rust
+use std::time::Duration;
+use futures::future;
+use tokio::{task, runtime::Runtime};
+
+fn main() {
+    let a = async {
+        for i in 1..10 {
+            println!("hi number {i} from the first task!");
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    };
+    
+    let b = async {
+        for i in 1..5 {
+            println!("hi number {i} from the second task!");
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    };
+
+    let rt = Runtime::new().unwrap();   
+    let h = rt.handle()
+    rt.spawn(async {
+        future::join(a, b).await;
+    });
+}
+```
+
+This does not work because the futures “complete” after the *first* `.await` in the `for` loops. The `Poll` state of the `Future` at that point is `Ready`.
