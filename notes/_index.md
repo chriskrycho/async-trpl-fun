@@ -36,8 +36,10 @@ The short answer is: there is nothing *exactly* equivalent to it, because there 
 The closest thing in Rust to the above is going to be something like this (with `futures` in `Cargo.toml`):
 
 ```rust
+use futures::executor;
+
 fn main() {
-    let result = futures::executor::block_on(hello());
+    let result = executor::block_on(hello());
     println!("{result}");
 }
 
