@@ -1,7 +1,7 @@
-// use futures::executor;
+use futures::executor;
 
 fn main() {
-    hello_async();
+    executor::block_on(hello_async());
 }
 
 async fn hello_async() {
