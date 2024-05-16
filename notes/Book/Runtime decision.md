@@ -41,7 +41,7 @@ pub async fn sleep(dur: Duration) {
 }
 ```
 
-Even with some of those quirks, I am mildly inclined to use `smol` for `trpl`? I guess it depends a bit on what we end up choosing to do in Ch. ~~20~~ 21.
+Even with some of those quirks, I am mildly inclined to use `smol` for `trpl`? I guess it depends a bit on what we end up choosing to do in Ch. ~~20~~ 2.
 
 But there are also enough of those other differences—like returning `Option<T>` instead of `Future<Output = Result<T, RecvError>>`—that it increasingly feels like it might be worth using `smol`[^async-std] instead. There are *some* divergences there, e.g. `smol` uses `bounded` and `unbounded` instead of `std`’s `channel` and `sync_channel`, but there is overall more consistency with `std`, and fewer places where it just kind of “goes its own way”.
 
