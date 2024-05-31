@@ -1,32 +1,32 @@
-use std::{
-    future::Future,
-    num::NonZeroU8,
-    pin::{pin, Pin},
-    time::Duration,
-};
+use std::{future::Future, num::NonZeroU8, pin::pin, time::Duration};
 
-use futures::future;
+use futures::future::{self, TryFutureExt};
 use rand::Rng;
 use tokio::time;
 
 #[tokio::main]
 async fn main() {
-    match retry(NonZeroU8::new(10).unwrap(), Duration::from_millis(10), run).await {
+    let max_times = NonZeroU8::new(10).unwrap();
+    let base_delay = Duration::from_millis(10);
+    match retry(max_times, base_delay, run).await {
         Ok((result, retries)) => println!("Resolved to '{result}' after {retries} (re)tries."),
-        Err(error) => match error {
-            Error::GaveUp { total } => println!("Gave up after {}ms", total.as_millis()),
-            Error::Failed(timeout) => println!("Timed out after {}", timeout.as_millis()),
-        },
+        Err(GaveUp { total, source }) => println!(
+            "Gave up after {}ms{}",
+            total.as_millis(),
+            source
+                .map(|source| format!(": {source}"))
+                .unwrap_or_default()
+        ),
     }
 }
 
-fn run() -> Box<dyn Future<Output = Result<String, Duration>>> {
+fn run() -> impl Future<Output = Result<String, String>> {
     let mut get_delay = get_random_delay_milliseconds(NonZeroU8::new(10).unwrap());
-    let result = timeout(get_delay(), async move {
+    timeout(get_delay(), async move {
         time::sleep(get_delay()).await;
         String::from("Tada")
-    });
-    Box::new(result)
+    })
+    .map_err(|e| format!("Timed out after {}ms", e.as_millis()))
 }
 
 fn get_random_delay_milliseconds(max: NonZeroU8) -> impl FnMut() -> Duration {
@@ -47,23 +47,28 @@ async fn timeout<F: Future>(duration: Duration, future: F) -> Result<F::Output, 
 }
 
 /// Exponential backoff up to some number of times
-async fn retry<F, T, E>(
+async fn retry<F, T, E, Fut>(
     max_times: NonZeroU8,
     delay_base: Duration,
-    op: F,
-) -> Result<(T, u8), Error<E>>
+    mut op: F,
+) -> Result<(T, u8), GaveUp<E>>
 where
-    F: Fn() -> Box<dyn Future<Output = Result<T, E>>>,
+    F: FnMut() -> Fut,
+    E: std::fmt::Display,
+    Fut: Future<Output = Result<T, E>>,
 {
     let max_times = max_times.get();
     let mut delay = delay_base;
     let backoff_ms = 2u128;
     for count in NonZeroU8::MIN.get()..=max_times {
-        match Pin::from(op()).await {
+        match op().await {
             Ok(value) => return Ok((value, count)),
             Err(reason) => {
                 if count >= max_times {
-                    return Err(Error::Failed(reason));
+                    return Err(GaveUp {
+                        total: delay,
+                        source: Some(reason),
+                    });
                 }
 
                 println!("Failed, trying again after {}ms", delay.as_millis());
@@ -75,10 +80,13 @@ where
         }
     }
 
-    Err(Error::GaveUp { total: delay })
+    Err(GaveUp {
+        total: delay,
+        source: None,
+    })
 }
 
-enum Error<E> {
-    GaveUp { total: Duration },
-    Failed(E),
+struct GaveUp<E: std::fmt::Display> {
+    total: Duration,
+    source: Option<E>,
 }
