@@ -9,7 +9,10 @@ use axum::{
     routing::get,
     Router,
 };
-use futures::{future, SinkExt, StreamExt};
+use futures::{
+    future::{self, Either},
+    Future, SinkExt, StreamExt,
+};
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use tokio::{
     net::TcpListener,
@@ -178,7 +181,7 @@ async fn websocket(stream: WebSocket, change_tx: Tx) {
         }
     });
 
-    future::select(reload_fut, close_fut).await;
+    (reload_fut, close_fut).race().await;
 }
 
 enum WSState {
@@ -222,5 +225,34 @@ fn handle(message: Result<Message, axum::Error>) -> Result<WSState, String> {
         },
 
         Err(reason) => Err(format!("{reason}")),
+    }
+}
+
+trait Race<T, U>: Sized {
+    async fn race(self) -> Either<T, U>;
+}
+
+impl<A, B, F1, F2> Race<A, B> for (F1, F2)
+where
+    A: Sized,
+    B: Sized,
+    F1: Future<Output = A>,
+    F2: Future<Output = B>,
+{
+    async fn race(self) -> Either<A, B> {
+        race(self.0, self.1).await
+    }
+}
+
+async fn race<A, B, F1, F2>(f1: F1, f2: F2) -> Either<A, B>
+where
+    F1: Future<Output = A>,
+    F2: Future<Output = B>,
+{
+    let f1 = pin!(f1);
+    let f2 = pin!(f2);
+    match future::select(f1, f2).await {
+        Either::Left((a, _f2)) => Either::Left(a),
+        Either::Right((b, _f1)) => Either::Right(b),
     }
 }
