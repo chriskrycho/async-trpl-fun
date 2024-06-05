@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, pin::pin};
 
 use axum::{
     extract::{
@@ -9,15 +9,15 @@ use axum::{
     routing::get,
     Router,
 };
-use futures::{SinkExt as _, StreamExt as _};
+use futures::{future, SinkExt, StreamExt};
 use notify::{recommended_watcher, RecursiveMode, Watcher};
 use tokio::{
     net::TcpListener,
     runtime::Runtime,
     signal::ctrl_c,
     sync::{
-        mpsc::{self, Receiver, Sender},
-        Mutex,
+        broadcast::{self, error::RecvError, Sender},
+        mpsc,
     },
     task,
 };
@@ -26,12 +26,14 @@ use tower_http::services::ServeDir;
 pub fn serve(path: PathBuf) -> Result<(), String> {
     let rt = Runtime::new().map_err(|error| format!("{error}"))?;
 
-    let (tx, rx) = mpsc::channel(10);
-    let rx = Arc::new(Mutex::new(rx));
+    // We only need the tx side, since we are going to take advantage of the
+    // fact that it `broadcast::Sender` implements `Clone` to pass it around and
+    // get easy and convenient access to local receivers with `tx.subscribe()`.
+    let (tx, _rx) = broadcast::channel(10);
 
     let mut set = task::JoinSet::new();
-    let server_handle = set.spawn_on(server_in(path.to_owned(), rx), rt.handle());
-    let watcher_handle = set.spawn_on(watcher_in(path.to_owned(), tx), rt.handle());
+    let server_handle = set.spawn_on(server_in(path.to_owned(), tx.clone()), rt.handle());
+    let watcher_handle = set.spawn_on(watcher_in(path.to_owned(), tx.clone()), rt.handle());
 
     set.spawn_on(
         async move {
@@ -44,9 +46,12 @@ pub fn serve(path: PathBuf) -> Result<(), String> {
     );
 
     rt.block_on(async {
+        eprintln!("Starting up `block_on` in `serve`.");
         while let Some(result) = set.join_next().await {
             match result {
-                Ok(Ok(_)) => {}
+                Ok(Ok(_)) => {
+                    eprintln!("everything was awesome.")
+                }
                 Ok(Err(reason)) => return Err(format!("inner: {reason}")),
                 Err(reason) => return Err(format!("outer: {reason}")),
             }
@@ -56,7 +61,7 @@ pub fn serve(path: PathBuf) -> Result<(), String> {
     })
 }
 
-async fn watcher_in(dir: PathBuf, event_channel: Sender<Change>) -> Result<(), String> {
+async fn watcher_in(dir: PathBuf, change_tx: Tx) -> Result<(), String> {
     let (tx, mut rx) = mpsc::channel(256);
 
     // Doing this here means we will not drop the watcher until this function
@@ -76,30 +81,32 @@ async fn watcher_in(dir: PathBuf, event_channel: Sender<Change>) -> Result<(), S
     while let Some(result) = rx.recv().await {
         match result {
             Ok(event) => {
+                eprintln!("---");
                 eprintln!("Got an event:\n\t{:?}\n\t{:?}", event.kind, event.source());
                 let change = Change { paths: event.paths };
-                if let Err(e) = event_channel.send(change).await {
+                if let Err(e) = change_tx.send(change) {
                     eprintln!("Error sending out: {e:?}");
                 }
             }
-            Err(reason) => return Err(format!("{reason}")),
+            Err(reason) => return Err(format!("Other error: {reason}")),
         }
     }
 
     Ok(())
 }
 
-type SharedRx = Arc<Mutex<Receiver<Change>>>;
-
 #[derive(Debug, Clone)]
 struct Change {
     pub paths: Vec<PathBuf>,
 }
 
+/// Shorthand for typing!
+type Tx = Sender<Change>;
+
 // I suspect we may want to abstract this a bit. Make *most* of this particular
 // thing one of the things we supply via our managed crate. In that approach, we
 // can basically *just* have the readers implement the WebSocket handler.
-async fn server_in(path: PathBuf, state: SharedRx) -> Result<(), String> {
+async fn server_in(path: PathBuf, state: Tx) -> Result<(), String> {
     let serve_dir = ServeDir::new(path).append_index_html_on_directories(true);
 
     let router = Router::new()
@@ -118,60 +125,68 @@ async fn server_in(path: PathBuf, state: SharedRx) -> Result<(), String> {
         .await
         .map_err(|error| format!("{error}"))
 }
-
-#[derive(Debug, Clone)]
-struct WebSocketClosed {
-    reason: Option<String>,
+async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<Tx>) -> Response {
+    eprintln!("binding websocket upgrade");
+    ws.on_upgrade(|socket| {
+        eprintln!("upgrading the websocket");
+        websocket(socket, state)
+    })
 }
 
-async fn ws_upgrade(ws: WebSocketUpgrade, State(rx): State<SharedRx>) -> Response {
-    eprintln!("upgrading the websocket");
-    ws.on_upgrade(|socket| websocket(socket, rx))
-}
+async fn websocket(stream: WebSocket, change_tx: Tx) {
+    let (mut ws_tx, mut ws_rx) = stream.split();
+    let mut change_rx = change_tx.subscribe();
 
-async fn websocket(stream: WebSocket, rx: SharedRx) {
-    let (mut ws_sender, mut receiver) = stream.split();
-
-    let mut listening = true;
-
-    // TODO: split into two tasks
-
-    loop {
-        if let Some(Change { paths }) = rx.lock().await.recv().await {
-            // TODO: only reload specific paths.
-            if listening {
-                eprint!("sending WebSocket reload message…");
-                ws_sender
-                    .send(Message::Text(String::from("reload")))
-                    .await
-                    .unwrap(); // TODO: error handling!
-
-                eprintln!(" done.");
+    let reload_fut = pin!(async {
+        loop {
+            match change_rx.recv().await {
+                Ok(Change { paths: _paths }) => {
+                    // TODO: only reload specific paths.
+                    eprintln!("sending WebSocket reload message…");
+                    match ws_tx.send(Message::Text(String::from("reload"))).await {
+                        Ok(_) => println!("\tSent!"),
+                        Err(reason) => eprintln!("\tError with reload: {reason}"),
+                    }
+                }
+                Err(recv_error) => match recv_error {
+                    RecvError::Closed => break,
+                    RecvError::Lagged(skipped) => {
+                        eprintln!("Lost {skipped} messages");
+                    }
+                },
             }
         }
+    });
 
-        if let Some(websocket_message) = receiver.next().await {
-            match handle(websocket_message) {
-                Ok(Some(WebSocketClosed { reason })) => {
-                    eprintln!(
-                        "WebSocket instance closed: {}",
-                        reason.unwrap_or(String::from("(reason unknown)"))
-                    );
-                    listening = false;
-                }
-                Ok(None) => (/* no-op */),
+    let close_fut = pin!(async {
+        while let Some(message) = ws_rx.next().await {
+            match handle(message) {
+                Ok(state) => match state {
+                    WSState::Open => {
+                        eprintln!("ws open, continuing")
+                    }
+                    WSState::Closed { reason } => {
+                        eprintln!("ws closed ({reason:?}), breaking");
+                        break;
+                    }
+                },
                 Err(reason) => {
-                    eprintln!("WebSocket error: {reason}");
-                    listening = false;
+                    eprintln!("ws error: {reason}");
+                    break;
                 }
             }
-        } else {
-            break;
         }
-    }
+    });
+
+    future::select(reload_fut, close_fut).await;
 }
 
-fn handle(message: Result<Message, axum::Error>) -> Result<Option<WebSocketClosed>, String> {
+enum WSState {
+    Open,
+    Closed { reason: Option<String> },
+}
+
+fn handle(message: Result<Message, axum::Error>) -> Result<WSState, String> {
     eprintln!("got {message:?} from WebSocket");
 
     use Message::*;
@@ -179,11 +194,17 @@ fn handle(message: Result<Message, axum::Error>) -> Result<Option<WebSocketClose
         Ok(message) => match message {
             // We don't care about *receiving* messages from the WebSocket, only
             // sending messages *to* it.
-            Text(_) | Binary(_) | Ping(_) | Pong(_) => Ok(None),
+            Text(_) | Binary(_) => {
+                Err("Unexpected message (this is a one-way conversation!".to_string())
+            }
+            Ping(_) | Pong(_) => {
+                eprintln!("ping/ping");
+                Ok(WSState::Open)
+            }
 
             // We *do* care if the socket closes.
             Close(maybe_frame) => {
-                let message = WebSocketClosed {
+                let message = WSState::Closed {
                     reason: maybe_frame.map(|frame| {
                         let desc = if !frame.reason.is_empty() {
                             format!("Reason: {};", frame.reason)
@@ -196,7 +217,7 @@ fn handle(message: Result<Message, axum::Error>) -> Result<Option<WebSocketClose
                     }),
                 };
 
-                Ok(Some(message))
+                Ok(message)
             }
         },
 
