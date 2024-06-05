@@ -3,6 +3,7 @@
     <title>LRRS: Tokio testbed</title>
     <script>
       let ws = new WebSocket("http://localhost:9876/lr");
+      console.log('created ws');
 
       ws.addEventListener("error", (event) => {
         console.error("error:", event);
@@ -23,6 +24,8 @@
           location.reload();
         }
       });
+      
+      console.log('added all ws listeners');
     </script>
   </head>
   <body>
