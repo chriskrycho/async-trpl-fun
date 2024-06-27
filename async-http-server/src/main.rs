@@ -17,16 +17,15 @@ async fn main() {
 
 async fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
+    let request_line = buf_reader.lines_stream().next().await.unwrap().unwrap();
 
-    let http_request: Vec<_> = buf_reader
-        .lines_stream()
-        .map(|result| result.unwrap())
-        .take_while(|line| !line.is_empty())
-        .collect()
-        .await;
+    let (status_line, file_name) = if request_line == "GET / HTTP/1.1" {
+        ("HTTP/1.1 200 OK", "hello.html")
+    } else {
+        ("HTTP/1.1 404 NOT FOUND", "404.html")
+    };
 
-    let status_line = "HTTP/1.1 200 OK";
-    let contents = fs::read_to_string("hello.html").await.unwrap();
+    let contents = fs::read_to_string(file_name).await.unwrap();
     let length = contents.len();
 
     let response =
