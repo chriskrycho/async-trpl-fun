@@ -1,10 +1,10 @@
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 use tokio::{
     fs,
     io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
-    time,
+    task, time,
 };
 use tokio_stream::{wrappers::LinesStream, StreamExt};
 
@@ -14,7 +14,9 @@ async fn main() {
 
     loop {
         let (stream, _address) = listener.accept().await.unwrap();
-        handle_connection(stream).await;
+        task::spawn(async {
+            handle_connection(stream).await;
+        });
     }
 }
 
@@ -25,9 +27,6 @@ async fn handle_connection(mut stream: TcpStream) {
     let (status_line, file_name) = match request_line.as_str() {
         "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"),
         "GET /sleep HTTP/1.1" => {
-            // Notice that this still blocks other requests. Just using async
-            // is not a get-out-of-blocking-free card. The top-level `loop` does
-            // not take advantage of async, but handles each request in series.
             time::sleep(Duration::from_secs(5)).await;
             ("HTTP/1.1 200 OK", "hello.html")
         }
