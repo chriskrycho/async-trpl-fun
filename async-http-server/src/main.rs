@@ -1,7 +1,10 @@
+use std::{thread, time::Duration};
+
 use tokio::{
     fs,
     io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
+    time,
 };
 use tokio_stream::{wrappers::LinesStream, StreamExt};
 
@@ -19,10 +22,16 @@ async fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
     let request_line = buf_reader.lines_stream().next().await.unwrap().unwrap();
 
-    let (status_line, file_name) = if request_line == "GET / HTTP/1.1" {
-        ("HTTP/1.1 200 OK", "hello.html")
-    } else {
-        ("HTTP/1.1 404 NOT FOUND", "404.html")
+    let (status_line, file_name) = match request_line.as_str() {
+        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"),
+        "GET /sleep HTTP/1.1" => {
+            // Notice that this still blocks other requests. Just using async
+            // is not a get-out-of-blocking-free card. The top-level `loop` does
+            // not take advantage of async, but handles each request in series.
+            time::sleep(Duration::from_secs(5)).await;
+            ("HTTP/1.1 200 OK", "hello.html")
+        }
+        _ => ("HTTP/1.1 404 NOT FOUND", "404.html"),
     };
 
     let contents = fs::read_to_string(file_name).await.unwrap();
